@@ -15,6 +15,7 @@ import {
     FEATURE_STALE_ON,
     FEATURE_STALE_OFF,
     FEATURES_IMPORTED,
+    FEATURE_CONFIGS_SYNCED,
     type IBaseEvent,
     type IEvent,
     type IEventType,
@@ -265,6 +266,7 @@ export class EventStore implements IEventStore {
                 FEATURE_UNCOMPLETED,
                 FEATURE_STALE_ON,
                 FEATURE_STALE_OFF,
+                FEATURE_CONFIGS_SYNCED,
             ])
             .whereNot('type', 'LIKE', 'change-%');
 

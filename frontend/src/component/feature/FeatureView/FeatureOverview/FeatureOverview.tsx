@@ -24,6 +24,7 @@ import { FeatureSetupBanner } from './FeatureSetupBanner.tsx';
 import { getFeatureSetupStage } from './getFeatureSetupStage.ts';
 import { useUiFlag } from 'hooks/useUiFlag';
 import { PayloadSchemaSidebar } from './PayloadSchema/PayloadSchemaSidebar.tsx';
+import { FeatureSyncOverview } from './FeatureSyncOverview/FeatureSyncOverview.tsx';
 
 const StyledContainer = styled('div')(({ theme }) => ({
     display: 'flex',
@@ -127,6 +128,10 @@ export const FeatureOverview = ({ header }: FeatureOverviewProps) => {
                     <FeatureOverviewEnvironments
                         onToggleEnvOpen={toggleShowTooltip}
                         hiddenEnvironments={hiddenEnvironments}
+                    />
+                    <FeatureSyncOverview
+                        projectId={projectId}
+                        featureName={featureId}
                     />
                 </StyledMainContent>
                 <div>

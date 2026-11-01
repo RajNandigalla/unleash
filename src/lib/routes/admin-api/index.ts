@@ -31,6 +31,7 @@ import FavoritesController from './favorites.js';
 import MaintenanceController from '../../features/maintenance/maintenance-controller.js';
 import type { Db } from '../../db/db.js';
 import ExportImportController from '../../features/export-import-toggles/export-import-controller.js';
+import { EnvironmentSyncController } from '../../features/environment-sync/environment-sync-controller.js';
 import { SegmentsController } from '../../features/segment/segment-controller.js';
 import { InactiveUsersController } from '../../users/inactive/inactive-users-controller.js';
 import { UiObservabilityController } from '../../features/ui-observability-controller/ui-observability-controller.js';
@@ -100,6 +101,10 @@ export class AdminApi extends Controller {
         this.app.use(
             '/features-batch',
             new ExportImportController(config, services).router,
+        );
+        this.app.use(
+            '/environment-sync',
+            new EnvironmentSyncController(config, services).router,
         );
         this.app.use('/tags', new TagController(config, services).router);
         this.app.use(

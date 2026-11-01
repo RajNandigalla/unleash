@@ -59,6 +59,7 @@ import {
     FEATURE_VARIANTS_UPDATED,
     FEATURES_EXPORTED,
     FEATURES_IMPORTED,
+    FEATURE_CONFIGS_SYNCED,
     GROUP_DELETED,
     GROUP_UPDATED,
     GROUP_USER_ADDED,
@@ -676,6 +677,39 @@ export class FeatureArchivedEvent extends BaseEvent {
         const { project, featureName } = p;
         this.project = project;
         this.featureName = featureName;
+    }
+}
+
+export class FeatureConfigsSyncedEvent extends BaseEvent {
+    readonly project: string;
+    readonly environment: string;
+    readonly featureNames: string[];
+    readonly data: {
+        targetName: string;
+        targetEnvironment: string;
+        featureNames: string[];
+        createdCount: number;
+    };
+
+    constructor(eventData: {
+        project: string;
+        environment: string;
+        targetName: string;
+        targetEnvironment: string;
+        featureNames: string[];
+        createdCount?: number;
+        auditUser: IAuditUser;
+    }) {
+        super(FEATURE_CONFIGS_SYNCED, eventData.auditUser);
+        this.project = eventData.project;
+        this.environment = eventData.environment;
+        this.featureNames = eventData.featureNames;
+        this.data = {
+            targetName: eventData.targetName,
+            targetEnvironment: eventData.targetEnvironment,
+            featureNames: eventData.featureNames,
+            createdCount: eventData.createdCount ?? 0,
+        };
     }
 }
 

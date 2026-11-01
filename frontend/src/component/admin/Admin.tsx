@@ -23,6 +23,7 @@ import { AdminHome } from './AdminHome.tsx';
 import { RemoteMcpAdmin } from './remote-mcp/RemoteMcpAdmin.tsx';
 import { ImpactMetricsAdmin } from './impact-metrics/ImpactMetricsAdmin.tsx';
 import { ActiveSessions } from 'component/sessions/ActiveSessions.tsx';
+import { EnvironmentSyncAdmin } from './environmentSync/EnvironmentSyncAdmin.tsx';
 import { lazy } from 'react';
 
 const EnterpriseEdge = lazy(
@@ -56,6 +57,10 @@ export const Admin = () => {
                 />
                 <Route path='billing' element={<Billing />} />
                 <Route path='remote-mcp' element={<RemoteMcpAdmin />} />
+                <Route
+                    path='environment-sync'
+                    element={<EnvironmentSyncAdmin />}
+                />
                 <Route path='impact-metrics' element={<ImpactMetricsAdmin />} />
                 <Route path='instance-privacy' element={<InstancePrivacy />} />
                 <Route path='instance-name' element={<InstanceName />} />

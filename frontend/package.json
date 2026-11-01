@@ -160,6 +160,10 @@
     ]
   },
   "dependencies": {
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/merge": "^6.12.3",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
     "@fern-api/search-widget": "0.6.0",
     "chartjs-plugin-datalabels": "^2.2.0",
     "highlight.js": "^11.11.1",

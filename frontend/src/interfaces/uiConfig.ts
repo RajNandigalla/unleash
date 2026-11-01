@@ -102,6 +102,7 @@ export type UiFlags = {
     semverBuildMetadata?: boolean;
     helpMenuRelocationHint?: boolean;
     ipConstraintOperator?: boolean;
+    environmentSync?: boolean;
     githubIntegration?: boolean;
     integrationParamKvpEditor?: boolean;
     perFlagLifetime?: boolean;

@@ -122,6 +122,21 @@ export default class FakeFeatureStrategiesStore
         return Promise.resolve();
     }
 
+    async removeRegularStrategiesForFeatureEnv(
+        feature_name: string,
+        environment: string,
+    ): Promise<void> {
+        this.featureStrategies = this.featureStrategies.filter(
+            (strategy) =>
+                !(
+                    strategy.featureName === feature_name &&
+                    strategy.environment === environment &&
+                    !strategy.milestoneId
+                ),
+        );
+        return Promise.resolve();
+    }
+
     async getAll(): Promise<IFeatureStrategy[]> {
         return Promise.resolve(this.featureStrategies);
     }

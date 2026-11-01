@@ -56,6 +56,8 @@ import {
     createFakeExportImportTogglesService,
     deferredExportImportTogglesService,
 } from '../features/export-import-toggles/createExportImportService.js';
+import { EnvironmentSyncService } from '../features/environment-sync/environment-sync-service.js';
+import { EnvironmentSyncClient } from '../features/environment-sync/environment-sync-client.js';
 import type { Db } from '../db/db.js';
 import {
     withFakeTransactional,
@@ -358,6 +360,13 @@ export const createServices = (
         : withFakeTransactional(createFakeEnvironmentService(config));
     const environmentService = transactionalEnvironmentService;
 
+    const environmentSyncService = new EnvironmentSyncService(
+        stores,
+        config,
+        { environmentService, eventService },
+        new EnvironmentSyncClient(config),
+    );
+
     const featureTagService = new FeatureTagService(
         stores,
         config,
@@ -620,6 +629,7 @@ export const createServices = (
         payloadSchemaService,
         unknownFlagsService,
         uiConfigService,
+        environmentSyncService,
         resourceLimitsService,
         constraintValidator,
     };
@@ -766,6 +776,7 @@ export interface IUnleashServices {
     payloadSchemaService: PayloadSchemaService;
     unknownFlagsService: UnknownFlagsService;
     uiConfigService: UiConfigService;
+    environmentSyncService: EnvironmentSyncService;
     resourceLimitsService: ResourceLimitsService;
     constraintValidator: IConstraintValidator;
 }

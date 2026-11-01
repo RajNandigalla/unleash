@@ -6,12 +6,13 @@ import { formatEnvironmentColumnId } from 'utils/formatEnvironmentColumnId';
 type ProjectFeaturesColumnsMenuProps = {
     columnVisibility: Record<string, boolean>;
     environments: string[];
+    syncEnabled?: boolean;
     onToggle: (id: string) => void;
 };
 
 export const ProjectFeaturesColumnsMenu: FC<
     ProjectFeaturesColumnsMenuProps
-> = ({ columnVisibility, environments, onToggle }) => {
+> = ({ columnVisibility, environments, syncEnabled, onToggle }) => {
     return (
         <Box sx={(theme) => ({ marginLeft: theme.spacing(1) })}>
             <ColumnsMenu
@@ -42,6 +43,15 @@ export const ProjectFeaturesColumnsMenu: FC<
                         id: 'lifecycle',
                         isVisible: columnVisibility.lifecycle,
                     },
+                    ...(syncEnabled
+                        ? [
+                              {
+                                  header: 'Sync',
+                                  id: 'sync',
+                                  isVisible: columnVisibility.sync,
+                              },
+                          ]
+                        : []),
                     {
                         id: 'divider',
                     },

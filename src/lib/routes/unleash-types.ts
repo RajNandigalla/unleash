@@ -12,6 +12,11 @@ export interface IAuthRequest<
     logout: (() => void) | ((callback: (err?: any) => void) => void);
     session: any;
     audit: IAuditUser;
+    /**
+     * Added by the RBAC middleware. A list of permissions is an OR: it
+     * resolves to true when the user has any one of them.
+     */
+    checkRbac?: (permissions: string | string[]) => Promise<boolean>;
 }
 
 export interface IApiRequest<
