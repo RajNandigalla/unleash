@@ -87,6 +87,7 @@ export type IFlagKey =
     | 'playgroundFeatureEvaluation'
     | 'slackAppAuthV2'
     | 'redactFeatureLabelInMetrics'
+    | 'environmentSync'
     | keyof IFlagKeyOverrides;
 
 export type IFlags = Partial<{ [key in IFlagKey]: boolean | Variant }>;
@@ -389,6 +390,10 @@ const flags: IFlags = {
     ),
     playgroundFeatureEvaluation: parseEnvVarBoolean(
         process.env.UNLEASH_EXPERIMENTAL_PLAYGROUND_FEATURE_EVALUATION,
+        false,
+    ),
+    environmentSync: parseEnvVarBoolean(
+        process.env.UNLEASH_EXPERIMENTAL_ENVIRONMENT_SYNC,
         false,
     ),
 };

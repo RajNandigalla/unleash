@@ -58,6 +58,7 @@ export const useDefaultColumnVisibility = (allColumnIds: string[]) => {
         'createdBy',
         'type',
         'tags',
+        'sync',
         ...showEnvironments(3),
     ]);
 };

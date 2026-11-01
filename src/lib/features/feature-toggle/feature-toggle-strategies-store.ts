@@ -255,6 +255,19 @@ class FeatureStrategiesStore implements IFeatureStrategiesStore {
             .del();
     }
 
+    async removeRegularStrategiesForFeatureEnv(
+        featureName: string,
+        environment: string,
+    ): Promise<void> {
+        await this.db('feature_strategies')
+            .where({
+                feature_name: featureName,
+                environment,
+            })
+            .whereNull('milestone_id')
+            .del();
+    }
+
     async getAll(): Promise<IFeatureStrategy[]> {
         const stopTimer = this.timer('getAll');
         const rows = await this.db
@@ -274,7 +287,9 @@ class FeatureStrategiesStore implements IFeatureStrategiesStore {
             .from<IFeatureStrategiesTable>(T.featureStrategies)
             .whereIn('feature_name', features)
             .andWhere('milestone_id', null)
-            .orderBy('feature_name', 'asc');
+            .orderBy('feature_name', 'asc')
+            .orderBy('sort_order', 'asc')
+            .orderBy('created_at', 'asc');
         if (environment) {
             query.where('environment', environment);
         }

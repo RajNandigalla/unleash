@@ -1004,6 +1004,106 @@ export class FeatureToggleService {
         );
     }
 
+    /**
+     * Replaces the strategy and variant configuration of one environment
+     * without touching the environment's enabled state, the feature's
+     * metadata, tags, links or dependencies.
+     *
+     * Used by environment sync. Deleting strategies through the regular
+     * service methods can disable the environment, so this method removes
+     * them with a raw delete and then creates the incoming strategies.
+     *
+     * Callers should wrap this in a transaction.
+     */
+    async replaceEnvironmentConfig(
+        projectId: string,
+        featureName: string,
+        environment: string,
+        strategies: Unsaved<IStrategyConfig>[],
+        variants: IVariant[],
+        auditUser: IAuditUser,
+    ): Promise<{ created: boolean }> {
+        const existing = (
+            await this.featureToggleStore.getAllByNames([featureName])
+        ).find((feature) => feature.name === featureName);
+        let created = false;
+
+        if (!existing) {
+            await this.createFeatureToggle(
+                projectId,
+                { name: featureName },
+                auditUser,
+            );
+            created = true;
+        } else if (existing.project !== projectId) {
+            throw new BadDataError(
+                `Feature flag "${featureName}" belongs to project "${existing.project}", not "${projectId}"`,
+            );
+        } else if (existing.archivedAt) {
+            throw new BadDataError(
+                `Feature flag "${featureName}" is archived on the target instance`,
+            );
+        }
+
+        const hasEnvironment =
+            await this.featureEnvironmentStore.featureHasEnvironment(
+                environment,
+                featureName,
+            );
+        if (!hasEnvironment) {
+            throw new BadDataError(
+                `Environment "${environment}" is not enabled for project "${projectId}"`,
+            );
+        }
+
+        const oldStrategies = (
+            await this.featureStrategiesStore.getStrategiesForFeatureEnv(
+                projectId,
+                featureName,
+                environment,
+            )
+        ).filter((strategy) => !strategy.milestoneId);
+
+        for (const strategy of oldStrategies) {
+            await this.eventService.storeEvent(
+                new FeatureStrategyRemoveEvent({
+                    featureName,
+                    project: projectId,
+                    environment,
+                    auditUser,
+                    preData: this.featureStrategyToPublic(strategy),
+                }),
+            );
+        }
+
+        // Raw delete: never runs the "disable when no strategies remain" logic.
+        await this.featureStrategiesStore.removeRegularStrategiesForFeatureEnv(
+            featureName,
+            environment,
+        );
+
+        for (const strategy of strategies) {
+            await this.unprotectedCreateStrategy(
+                {
+                    ...strategy,
+                    segments: strategy.segments ?? [],
+                },
+                { projectId, featureName, environment },
+                auditUser,
+            );
+        }
+
+        await this.legacySaveVariantsOnEnv(
+            projectId,
+            featureName,
+            environment,
+            variants,
+            auditUser,
+        );
+
+        return { created };
+    }
+
     async getStrategiesForEnvironment(
         project: string,
         featureName: string,

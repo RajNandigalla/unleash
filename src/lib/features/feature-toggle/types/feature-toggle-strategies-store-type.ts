@@ -79,6 +79,11 @@ export interface IFeatureStrategiesStore
         environment: string,
     ): Promise<void>;
 
+    removeRegularStrategiesForFeatureEnv(
+        featureName: string,
+        environment: string,
+    ): Promise<void>;
+
     getStrategiesForFeatureEnv(
         projectId: string,
         featureName: string,

@@ -200,6 +200,7 @@ export interface IUnleashOptions {
     checkDbOnReady?: boolean;
     edgeMasterKey?: string;
     edgeClientSecret?: string;
+    environmentSyncEncryptionKey?: string;
     allowPrivateUrlInIntegration?: boolean;
     allowListIntegration?: string[];
 }
@@ -341,6 +342,7 @@ export interface IUnleashConfig {
     checkDbOnReady?: boolean;
     edgeMasterKey?: string;
     edgeClientSecret?: string;
+    environmentSyncEncryptionKey?: string;
     allowPrivateUrlInIntegration?: boolean;
     allowListIntegration?: string[];
 }

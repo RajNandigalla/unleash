@@ -79,6 +79,14 @@ export const adminRoutes: INavigationMenuItem[] = [
         },
     },
 
+    // Environment sync
+    {
+        path: '/admin/environment-sync',
+        title: 'Environment sync',
+        menu: { adminSettings: true },
+        flag: 'environmentSync',
+    },
+
     // Access control
     {
         path: '/admin/api',

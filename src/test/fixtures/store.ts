@@ -68,6 +68,7 @@ import { FakeReleasePlanMilestoneStrategyStore } from './fake-release-plan-miles
 import type { UserUpdatesReadModel } from '../../lib/features/users/user-updates-read-model.js';
 import { FakeEdgeTokenStore } from '../../lib/features/edgetokens/fake-edge-token-store.js';
 import { FakeApiTokenV2Store } from '../../lib/features/apitokensv2/fake-api-token-v2-store.js';
+import { FakeEnvironmentSyncTargetStore } from '../../lib/features/environment-sync/fakes/fake-environment-sync-target-store.js';
 
 const db = {
     select: () => ({
@@ -157,6 +158,7 @@ const createStores: () => IUnleashStores = () => {
         unknownFlagsStore,
         featureLinkReadModel: new FakeFeatureLinksReadModel(),
         edgeTokenStore: new FakeEdgeTokenStore(),
+        environmentSyncTargetStore: new FakeEnvironmentSyncTargetStore(),
     };
 };
 

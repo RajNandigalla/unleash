@@ -879,6 +879,10 @@ export function createConfig(options: IUnleashOptions): IUnleashConfig {
 
     const edgeClientSecret =
         options.edgeClientSecret ?? process.env.EDGE_CLIENT_SECRET;
+
+    const environmentSyncEncryptionKey =
+        options.environmentSyncEncryptionKey ??
+        process.env.UNLEASH_SYNC_ENCRYPTION_KEY;
     return {
         db,
         session,
@@ -929,6 +933,7 @@ export function createConfig(options: IUnleashOptions): IUnleashConfig {
         checkDbOnReady,
         edgeMasterKey,
         edgeClientSecret,
+        environmentSyncEncryptionKey,
         ...integrationConfig,
     };
 }

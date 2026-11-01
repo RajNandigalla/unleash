@@ -58,6 +58,7 @@ export type CustomEvents =
     | 'sdk-reporting'
     | 'insights-share'
     | 'many-strategies'
+    | 'environment-sync'
     | 'sdk-banner'
     | 'feature-lifecycle'
     | 'command-bar'

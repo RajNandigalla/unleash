@@ -60,6 +60,13 @@ import {
     trackedColumnName,
 } from 'utils/formatEnvironmentColumnId';
 import { ProjectFeaturesColumnsMenu } from './ProjectFeaturesColumnsMenu/ProjectFeaturesColumnsMenu.tsx';
+import { useUiFlag } from 'hooks/useUiFlag';
+import { useCheckProjectPermissions } from 'hooks/useHasAccess';
+import { UPDATE_FEATURE_ENVIRONMENT } from 'component/providers/AccessProvider/permissions';
+import { useProjectSyncStatus } from 'hooks/api/getters/useProjectSyncStatus/useProjectSyncStatus';
+import { FeatureSyncCell } from 'component/feature/FeatureSync/FeatureSyncCell';
+import { FeatureSyncDialog } from 'component/feature/FeatureSync/FeatureSyncDialog';
+import { ProjectSyncSummary } from 'component/feature/FeatureSync/ProjectSyncSummary';
 import { ProjectFeatureTogglesHeader } from './ProjectFeatureTogglesHeader/ProjectFeatureTogglesHeader.tsx';
 import { ProjectFlagsSearch } from './ProjectFlagsSearch/ProjectFlagsSearch.tsx';
 
@@ -120,6 +127,24 @@ export const ProjectFeatureToggles = ({
         refetch();
         refetchProjectStatus();
     }, [refetch, refetchProjectStatus]);
+
+    const environmentSyncFlag = useUiFlag('environmentSync');
+    // The targets endpoint requires ADMIN, while status, compare and sync
+    // only require UPDATE_FEATURE_ENVIRONMENT. Deriving whether any target is
+    // configured from the status response keeps this column available to the
+    // users who are actually allowed to sync.
+    const canSync = useCheckProjectPermissions(projectId)(
+        UPDATE_FEATURE_ENVIRONMENT,
+    );
+    const syncEnabled = environmentSyncFlag && canSync;
+    const {
+        status: syncStatus,
+        statuses: syncStatuses,
+        loading: syncStatusLoading,
+        refresh: refreshSyncStatus,
+    } = useProjectSyncStatus(projectId, syncEnabled);
+    const hasSyncTargets = syncEnabled && (syncStatus?.targets.length ?? 0) > 0;
+    const [syncFeatureName, setSyncFeatureName] = useState<string | null>(null);
 
     const filterState = {
         tag: tableState.tag,
@@ -232,6 +257,33 @@ export const ProjectFeatureToggles = ({
                 ),
                 enableHiding: false,
             }),
+
+            ...(hasSyncTargets
+                ? [
+                      columnHelper.display({
+                          id: 'sync',
+                          header: 'Sync',
+                          cell: ({ row }) => (
+                              <FeatureSyncCell
+                                  status={
+                                      syncStatuses.get(row.original.name)
+                                          ?.status
+                                  }
+                                  hasTargets={hasSyncTargets}
+                                  loading={syncStatusLoading}
+                                  onOpen={() =>
+                                      setSyncFeatureName(row.original.name)
+                                  }
+                              />
+                          ),
+                          enableSorting: false,
+                          meta: {
+                              align: 'center',
+                              width: 130,
+                          },
+                      }),
+                  ]
+                : []),
 
             columnHelper.accessor('createdAt', {
                 id: 'createdAt',
@@ -396,6 +448,10 @@ export const ProjectFeatureToggles = ({
             tableState.favoritesFirst,
             refetch,
             isPlaceholder,
+            syncEnabled,
+            syncStatuses,
+            syncStatusLoading,
+            hasSyncTargets,
         ],
     );
 
@@ -533,6 +589,10 @@ export const ProjectFeatureToggles = ({
                     aria-busy={isPlaceholder}
                     aria-live='polite'
                 >
+                    <ProjectSyncSummary
+                        projectId={projectId}
+                        enabled={hasSyncTargets}
+                    />
                     <FiltersContainer>
                         <FilterRow>
                             <ProjectLifecycleFilters
@@ -553,6 +613,7 @@ export const ProjectFeatureToggles = ({
                             <ProjectFeaturesColumnsMenu
                                 columnVisibility={columnVisibility}
                                 environments={environments}
+                                syncEnabled={hasSyncTargets}
                                 onToggle={onToggleColumnVisibility}
                             />
                         </FilterRow>
@@ -604,6 +665,15 @@ export const ProjectFeatureToggles = ({
                     />
                     {rowActionsDialogs}
                     {featureToggleModals}
+                    {syncFeatureName && (
+                        <FeatureSyncDialog
+                            projectId={projectId}
+                            featureName={syncFeatureName}
+                            open
+                            onClose={() => setSyncFeatureName(null)}
+                            onSynced={refreshSyncStatus}
+                        />
+                    )}
                 </div>
             </PageContent>
             <ConnectSdkDialog

@@ -172,6 +172,7 @@ export const PROJECT_FAVORITED = 'project-favorited' as const;
 export const PROJECT_UNFAVORITED = 'project-unfavorited' as const;
 export const FEATURES_EXPORTED = 'features-exported' as const;
 export const FEATURES_IMPORTED = 'features-imported' as const;
+export const FEATURE_CONFIGS_SYNCED = 'feature-configs-synced' as const;
 
 export const SERVICE_ACCOUNT_CREATED = 'service-account-created' as const;
 export const SERVICE_ACCOUNT_UPDATED = 'service-account-updated' as const;
@@ -377,6 +378,7 @@ export const IEventTypes = [
     PROJECT_UNFAVORITED,
     FEATURES_EXPORTED,
     FEATURES_IMPORTED,
+    FEATURE_CONFIGS_SYNCED,
     SERVICE_ACCOUNT_CREATED,
     SERVICE_ACCOUNT_DELETED,
     SERVICE_ACCOUNT_UPDATED,
