@@ -23,7 +23,10 @@ import { AdminHome } from './AdminHome.tsx';
 import { RemoteMcpAdmin } from './remote-mcp/RemoteMcpAdmin.tsx';
 import { ImpactMetricsAdmin } from './impact-metrics/ImpactMetricsAdmin.tsx';
 import { ActiveSessions } from 'component/sessions/ActiveSessions.tsx';
+import { PermissionGuard } from 'component/common/PermissionGuard/PermissionGuard';
+import { ADMIN } from 'component/providers/AccessProvider/permissions';
 import { EnvironmentSyncAdmin } from './environmentSync/EnvironmentSyncAdmin.tsx';
+import { EnvironmentSyncTargetConfigPage } from './environmentSync/EnvironmentSyncTargetConfigPage.tsx';
 import { lazy } from 'react';
 
 const EnterpriseEdge = lazy(
@@ -60,6 +63,14 @@ export const Admin = () => {
                 <Route
                     path='environment-sync'
                     element={<EnvironmentSyncAdmin />}
+                />
+                <Route
+                    path='environment-sync/:targetId'
+                    element={
+                        <PermissionGuard permissions={[ADMIN]}>
+                            <EnvironmentSyncTargetConfigPage />
+                        </PermissionGuard>
+                    }
                 />
                 <Route path='impact-metrics' element={<ImpactMetricsAdmin />} />
                 <Route path='instance-privacy' element={<InstancePrivacy />} />

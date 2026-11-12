@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from 'vitest';
-import { screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { render } from 'utils/testRenderer';
 import { testServerRoute, testServerSetup } from 'utils/testServer';
 import { ADMIN } from 'component/providers/AccessProvider/permissions';
@@ -38,6 +38,11 @@ const setupApi = () => {
                 sourceEnvironment: 'development',
                 targetEnvironment: 'production',
                 enabled: true,
+                ignoredConfig: {
+                    parameters: [],
+                    variantPayloads: [],
+                    ignoredFeatures: [],
+                },
                 createdAt: new Date().toISOString(),
                 createdBy: 'admin',
                 hasToken: true,
@@ -50,6 +55,22 @@ const setupApi = () => {
             },
         ],
     });
+    testServerRoute(server, '/api/admin/environment-sync/flags', {
+        flags: [{ name: 'my-flag', project: null, tags: [] }],
+    });
+    testServerRoute(
+        server,
+        '/api/admin/environment-sync/projects/catalog',
+        {
+            sourceEnvironment: 'development',
+            targetEnvironment: 'production',
+            comparedWithTarget: true,
+            entries: [],
+            flags: [{ name: 'my-flag', project: null, tags: [] }],
+            truncated: false,
+        },
+        'post',
+    );
 };
 
 test('lists connected environments and never exposes the token', async () => {
@@ -69,4 +90,25 @@ test('lists connected environments and never exposes the token', async () => {
     expect(screen.getByText('https://qa.example.com')).toBeInTheDocument();
     expect(screen.getByText('development → production')).toBeInTheDocument();
     expect(screen.queryByText(/secret/i)).not.toBeInTheDocument();
+});
+
+test('opens the configuration as a side panel', async () => {
+    setupApi();
+
+    render(<EnvironmentSyncAdmin />, {
+        permissions: [
+            {
+                permission: ADMIN,
+                project: '*',
+                environment: '*',
+            },
+        ],
+    });
+
+    fireEvent.click(
+        await screen.findByTitle('Environment-specific values and exclusions'),
+    );
+
+    expect(await screen.findByText('QA · configuration')).toBeInTheDocument();
+    expect(await screen.findByText('my-flag')).toBeInTheDocument();
 });

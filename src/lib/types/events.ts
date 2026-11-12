@@ -60,6 +60,9 @@ import {
     FEATURES_EXPORTED,
     FEATURES_IMPORTED,
     FEATURE_CONFIGS_SYNCED,
+    ENVIRONMENT_SYNC_TARGET_CHANGED,
+    ENVIRONMENT_SYNC_TARGET_CONFIG_UPDATED,
+    ENVIRONMENT_SYNC_FEATURE_EXCLUSION_CHANGED,
     GROUP_DELETED,
     GROUP_UPDATED,
     GROUP_USER_ADDED,
@@ -677,6 +680,96 @@ export class FeatureArchivedEvent extends BaseEvent {
         const { project, featureName } = p;
         this.project = project;
         this.featureName = featureName;
+    }
+}
+
+export class EnvironmentSyncTargetChangedEvent extends BaseEvent {
+    readonly targetId: number;
+    readonly targetName: string;
+    readonly data: {
+        action: 'created' | 'updated' | 'deleted';
+        targetId: number;
+        targetName: string;
+    };
+
+    constructor(eventData: {
+        action: 'created' | 'updated' | 'deleted';
+        targetId: number;
+        targetName: string;
+        auditUser: IAuditUser;
+    }) {
+        super(ENVIRONMENT_SYNC_TARGET_CHANGED, eventData.auditUser);
+        this.targetId = eventData.targetId;
+        this.targetName = eventData.targetName;
+        this.data = {
+            action: eventData.action,
+            targetId: eventData.targetId,
+            targetName: eventData.targetName,
+        };
+    }
+}
+
+export class EnvironmentSyncTargetConfigUpdatedEvent extends BaseEvent {
+    readonly targetId: number;
+    readonly targetName: string;
+    readonly data: {
+        targetId: number;
+        targetName: string;
+        parameters: number;
+        variantPayloads: number;
+        ignoredFeatures: number;
+        featureFields: number;
+    };
+
+    constructor(eventData: {
+        targetId: number;
+        targetName: string;
+        parameters: number;
+        variantPayloads: number;
+        ignoredFeatures: number;
+        featureFields: number;
+        auditUser: IAuditUser;
+    }) {
+        super(ENVIRONMENT_SYNC_TARGET_CONFIG_UPDATED, eventData.auditUser);
+        this.targetId = eventData.targetId;
+        this.targetName = eventData.targetName;
+        this.data = {
+            targetId: eventData.targetId,
+            targetName: eventData.targetName,
+            parameters: eventData.parameters,
+            variantPayloads: eventData.variantPayloads,
+            ignoredFeatures: eventData.ignoredFeatures,
+            featureFields: eventData.featureFields,
+        };
+    }
+}
+
+export class EnvironmentSyncFeatureExclusionChangedEvent extends BaseEvent {
+    readonly targetId: number;
+    readonly targetName: string;
+    readonly data: {
+        targetId: number;
+        targetName: string;
+        featureName: string;
+        excluded: boolean;
+    };
+
+    constructor(eventData: {
+        targetId: number;
+        targetName: string;
+        featureName: string;
+        excluded: boolean;
+        auditUser: IAuditUser;
+    }) {
+        super(ENVIRONMENT_SYNC_FEATURE_EXCLUSION_CHANGED, eventData.auditUser);
+        this.targetId = eventData.targetId;
+        this.targetName = eventData.targetName;
+        this.data = {
+            targetId: eventData.targetId,
+            targetName: eventData.targetName,
+            featureName: eventData.featureName,
+            excluded: eventData.excluded,
+        };
     }
 }
 

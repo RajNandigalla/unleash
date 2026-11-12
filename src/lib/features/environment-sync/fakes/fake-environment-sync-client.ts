@@ -2,10 +2,15 @@ import type {
     EnvironmentSyncApplyResponse,
     EnvironmentSyncConnectionResult,
     EnvironmentSyncFingerprints,
+    EnvironmentSyncRemoteCatalog,
     EnvironmentSyncRemoteConfig,
     EnvironmentSyncRemoteTarget,
     IEnvironmentSyncClient,
 } from '../environment-sync-client.js';
+import {
+    SYNC_PROTOCOL_VERSION,
+    type EnvironmentSyncIgnoredConfig,
+} from '../environment-sync-config.js';
 
 type FakeOverrides = Partial<{
     testConnection: (input: {
@@ -19,12 +24,22 @@ type FakeOverrides = Partial<{
             projectId: string;
             environment: string;
             featureNames?: string[];
+            ignoredConfig?: EnvironmentSyncIgnoredConfig;
         },
     ) => Promise<EnvironmentSyncFingerprints>;
     config: (
         target: EnvironmentSyncRemoteTarget,
-        input: { projectId: string; environment: string; featureName: string },
+        input: {
+            projectId: string;
+            environment: string;
+            featureName: string;
+            ignoredConfig?: EnvironmentSyncIgnoredConfig;
+        },
     ) => Promise<EnvironmentSyncRemoteConfig>;
+    catalog: (
+        target: EnvironmentSyncRemoteTarget,
+        input: { environment: string; featureNames?: string[] },
+    ) => Promise<EnvironmentSyncRemoteCatalog>;
     applyConfigs: (
         target: EnvironmentSyncRemoteTarget,
         input: {
@@ -35,6 +50,7 @@ type FakeOverrides = Partial<{
                 strategies: unknown[];
                 variants: unknown[];
             }[];
+            ignoredConfig?: EnvironmentSyncIgnoredConfig;
         },
     ) => Promise<EnvironmentSyncApplyResponse>;
 }>;
@@ -44,6 +60,7 @@ export class FakeEnvironmentSyncClient implements IEnvironmentSyncClient {
         testConnection: [] as unknown[],
         fingerprints: [] as unknown[],
         config: [] as unknown[],
+        catalog: [] as unknown[],
         applyConfigs: [] as unknown[],
     };
 
@@ -71,6 +88,7 @@ export class FakeEnvironmentSyncClient implements IEnvironmentSyncClient {
             projectId: string;
             environment: string;
             featureNames?: string[];
+            ignoredConfig?: EnvironmentSyncIgnoredConfig;
         },
     ): Promise<EnvironmentSyncFingerprints> {
         this.calls.fingerprints.push({ target, input });
@@ -78,7 +96,7 @@ export class FakeEnvironmentSyncClient implements IEnvironmentSyncClient {
             return this.overrides.fingerprints(target, input);
         }
         return {
-            version: 2,
+            version: SYNC_PROTOCOL_VERSION,
             environmentAvailable: true,
             features: (input.featureNames ?? []).map((name) => ({
                 name,
@@ -93,19 +111,41 @@ export class FakeEnvironmentSyncClient implements IEnvironmentSyncClient {
 
     async config(
         target: EnvironmentSyncRemoteTarget,
-        input: { projectId: string; environment: string; featureName: string },
+        input: {
+            projectId: string;
+            environment: string;
+            featureName: string;
+            ignoredConfig?: EnvironmentSyncIgnoredConfig;
+        },
     ): Promise<EnvironmentSyncRemoteConfig> {
         this.calls.config.push({ target, input });
         if (this.overrides.config) {
             return this.overrides.config(target, input);
         }
         return {
-            version: 2,
+            version: SYNC_PROTOCOL_VERSION,
             environmentAvailable: true,
             exists: false,
             archived: false,
             strategies: [],
             variants: [],
+        };
+    }
+
+    async catalog(
+        target: EnvironmentSyncRemoteTarget,
+        input: { environment: string; featureNames?: string[] },
+    ): Promise<EnvironmentSyncRemoteCatalog> {
+        this.calls.catalog.push({ target, input });
+        if (this.overrides.catalog) {
+            return this.overrides.catalog(target, input);
+        }
+        return {
+            version: SYNC_PROTOCOL_VERSION,
+            environment: input.environment,
+            entries: [],
+            flags: input.featureNames ?? [],
+            truncated: false,
         };
     }
 
@@ -119,6 +159,7 @@ export class FakeEnvironmentSyncClient implements IEnvironmentSyncClient {
                 strategies: unknown[];
                 variants: unknown[];
             }[];
+            ignoredConfig?: EnvironmentSyncIgnoredConfig;
         },
     ): Promise<EnvironmentSyncApplyResponse> {
         this.calls.applyConfigs.push({ target, input });

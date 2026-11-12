@@ -2,6 +2,7 @@ import type { Knex } from 'knex';
 import type { Db } from '../../db/db.js';
 import type { IUnleashConfig } from '../../types/option.js';
 import NotFoundError from '../../error/notfound-error.js';
+import { normalizeIgnoredConfig } from './environment-sync-config.js';
 import type {
     EnvironmentSyncTargetInsert,
     EnvironmentSyncTargetStateUpdate,
@@ -21,6 +22,7 @@ interface IEnvironmentSyncTargetRow {
     source_environment: string;
     target_environment: string;
     enabled: boolean;
+    ignored_config: unknown;
     created_at: Date;
     created_by: string | null;
     last_tested_at: Date | null;
@@ -42,6 +44,7 @@ const rowToTarget = (
     sourceEnvironment: row.source_environment,
     targetEnvironment: row.target_environment,
     enabled: row.enabled,
+    ignoredConfig: normalizeIgnoredConfig(row.ignored_config),
     createdAt: row.created_at,
     createdBy: row.created_by,
     lastTestedAt: row.last_tested_at,
@@ -104,6 +107,9 @@ export class EnvironmentSyncTargetStore implements IEnvironmentSyncTargetStore {
                     source_environment: target.sourceEnvironment,
                     target_environment: target.targetEnvironment,
                     enabled: target.enabled ?? true,
+                    ignored_config:
+                        target.ignoredConfig ??
+                        normalizeIgnoredConfig(undefined),
                     created_by: target.createdBy ?? null,
                 }),
             )
@@ -122,6 +128,7 @@ export class EnvironmentSyncTargetStore implements IEnvironmentSyncTargetStore {
             project: target.project,
             source_environment: target.sourceEnvironment,
             target_environment: target.targetEnvironment,
+            ignored_config: target.ignoredConfig,
             enabled: target.enabled,
         });
 

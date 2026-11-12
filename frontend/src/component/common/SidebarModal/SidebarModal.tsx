@@ -87,10 +87,13 @@ export const BaseModal: FC<ISidebarModalProps> = ({
     );
 };
 
-export const SidebarModal: FC<ISidebarModalProps> = (props) => {
+export const SidebarModal: FC<ISidebarModalProps & { width?: number }> = ({
+    width,
+    ...props
+}) => {
     return (
         <BaseModal {...props}>
-            <FixedWidthContentWrapper>
+            <FixedWidthContentWrapper sx={width ? { width } : undefined}>
                 {props.children}
             </FixedWidthContentWrapper>
         </BaseModal>

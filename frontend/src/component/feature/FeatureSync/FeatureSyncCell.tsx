@@ -84,5 +84,9 @@ export const FeatureSyncCell = ({
         return <SyncBadge color='neutral' label='No config' onOpen={onOpen} />;
     }
 
+    if (status === 'excluded') {
+        return <SyncBadge color='neutral' label='Excluded' onOpen={onOpen} />;
+    }
+
     return <SyncBadge color='warning' label='Out of sync' onOpen={onOpen} />;
 };

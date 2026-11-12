@@ -1,4 +1,5 @@
 import NotFoundError from '../../../error/notfound-error.js';
+import { emptyIgnoredConfig } from '../environment-sync-config.js';
 import type {
     EnvironmentSyncTargetInsert,
     EnvironmentSyncTargetStateUpdate,
@@ -41,6 +42,7 @@ export class FakeEnvironmentSyncTargetStore
             sourceEnvironment: target.sourceEnvironment,
             targetEnvironment: target.targetEnvironment,
             enabled: target.enabled ?? true,
+            ignoredConfig: target.ignoredConfig ?? emptyIgnoredConfig(),
             createdAt: now,
             createdBy: target.createdBy ?? null,
             lastTestedAt: null,
@@ -72,6 +74,9 @@ export class FakeEnvironmentSyncTargetStore
             }),
             ...(target.targetEnvironment !== undefined && {
                 targetEnvironment: target.targetEnvironment,
+            }),
+            ...(target.ignoredConfig !== undefined && {
+                ignoredConfig: target.ignoredConfig,
             }),
             ...(target.enabled !== undefined && { enabled: target.enabled }),
         };

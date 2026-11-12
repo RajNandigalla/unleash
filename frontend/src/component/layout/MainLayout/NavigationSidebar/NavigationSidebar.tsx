@@ -125,6 +125,14 @@ export const NavigationSidebar: FC = () => {
         setActiveItem(initialPathname);
     }, [initialPathname]);
 
+    // The admin-only menu has no compact layout. Force it open so a mode
+    // persisted from the main navigation can never leave it stuck in mini.
+    useEffect(() => {
+        if (showOnlyAdminMenu && mode !== 'full') {
+            setMode('full');
+        }
+    }, [showOnlyAdminMenu, mode, setMode]);
+
     return (
         <StretchContainer mode={mode} admin={showOnlyAdminMenu}>
             <TopContainer admin={showOnlyAdminMenu}>
@@ -206,14 +214,16 @@ export const NavigationSidebar: FC = () => {
                 />
             </MidContainer>
 
-            <BottomContainer admin={showOnlyAdminMenu}>
-                <ShowHide
-                    mode={mode}
-                    onChange={() => {
-                        setMode(mode === 'full' ? 'mini' : 'full');
-                    }}
-                />
-            </BottomContainer>
+            {!showOnlyAdminMenu && (
+                <BottomContainer admin={showOnlyAdminMenu}>
+                    <ShowHide
+                        mode={mode}
+                        onChange={() => {
+                            setMode(mode === 'full' ? 'mini' : 'full');
+                        }}
+                    />
+                </BottomContainer>
+            )}
         </StretchContainer>
     );
 };

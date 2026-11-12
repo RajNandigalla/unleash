@@ -117,6 +117,11 @@ test('editing a target does not test the connection on open', async () => {
                 sourceEnvironment: 'development',
                 targetEnvironment: 'production',
                 enabled: true,
+                ignoredConfig: {
+                    parameters: [],
+                    variantPayloads: [],
+                    ignoredFeatures: [],
+                },
                 createdAt: new Date().toISOString(),
                 createdBy: null,
                 hasToken: true,
@@ -144,4 +149,51 @@ test('editing a target does not test the connection on open', async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Load environments' }));
 
     await waitFor(() => expect(testCalls).toBe(1));
+});
+
+test('editing a connection does not touch the ignored configuration', async () => {
+    const requests = testServerRoute(
+        server,
+        '/api/admin/environment-sync/targets/7',
+        { ok: true },
+        'put',
+    );
+
+    render(
+        <EnvironmentSyncTargetForm
+            open
+            target={{
+                id: 7,
+                name: 'QA',
+                url: 'https://qa.example.com',
+                project: null,
+                sourceEnvironment: 'development',
+                targetEnvironment: 'production',
+                enabled: true,
+                ignoredConfig: {
+                    parameters: ['loginUrl'],
+                    variantPayloads: ['*::/redirectUrl'],
+                    ignoredFeatures: ['legacy-*'],
+                },
+                createdAt: new Date().toISOString(),
+                createdBy: null,
+                hasToken: true,
+                lastTestedAt: null,
+                lastTestStatus: null,
+                lastTestError: null,
+                lastSyncedAt: null,
+                lastSyncStatus: null,
+                lastSyncError: null,
+            }}
+            onClose={() => undefined}
+            onSaved={() => undefined}
+        />,
+    );
+
+    expect(await screen.findByDisplayValue('QA')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(requests.requests).toHaveLength(1));
+    expect(requests.requests[0]).not.toHaveProperty('ignoredConfig');
 });

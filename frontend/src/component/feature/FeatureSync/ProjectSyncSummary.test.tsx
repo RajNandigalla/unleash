@@ -1,8 +1,9 @@
 import { beforeEach, expect, test } from 'vitest';
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { render } from 'utils/testRenderer';
 import { testServerRoute, testServerSetup } from 'utils/testServer';
 import { http, HttpResponse } from 'msw';
+import { ADMIN } from 'component/providers/AccessProvider/permissions';
 import { ProjectSyncSummary } from './ProjectSyncSummary';
 
 const server = testServerSetup();
@@ -22,6 +23,7 @@ test('shows the summary and lists out-of-sync flags', async () => {
                 inSync: 3,
                 outOfSync: 2,
                 missing: 1,
+                excluded: 0,
                 errors: 0,
             },
             targets: [{ targetId: 1, targetName: 'QA' }],
@@ -108,6 +110,98 @@ test('Check now refreshes the status and shows feedback', async () => {
     expect(screen.getByText(/Last checked/)).toBeInTheDocument();
 });
 
+test('lists excluded flags when the excluded badge is clicked', async () => {
+    testServerRoute(
+        server,
+        '/api/admin/environment-sync/projects/default/status',
+        {
+            checkedAt: new Date().toISOString(),
+            summary: {
+                total: 3,
+                inSync: 1,
+                outOfSync: 0,
+                missing: 0,
+                excluded: 1,
+                errors: 0,
+            },
+            targets: [{ targetId: 1, targetName: 'QA' }],
+            features: [
+                {
+                    featureName: 'excluded-flag',
+                    status: 'excluded',
+                    targets: [{ targetId: 1, status: 'excluded' }],
+                },
+                {
+                    featureName: 'synced-flag',
+                    status: 'in_sync',
+                    targets: [{ targetId: 1, status: 'in_sync' }],
+                },
+            ],
+        },
+    );
+
+    render(<ProjectSyncSummary projectId='default' enabled />, {
+        permissions: [{ permission: ADMIN }],
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: '1 excluded' }));
+
+    expect(await screen.findByText('Excluded flags (1)')).toBeInTheDocument();
+    expect(screen.getByText('excluded-flag')).toBeInTheDocument();
+    expect(screen.getByText('QA')).toBeInTheDocument();
+    expect(screen.queryByText('synced-flag')).not.toBeInTheDocument();
+
+    const requests = testServerRoute(
+        server,
+        '/api/admin/environment-sync/targets/1/feature-exclusion',
+        { excluded: false, changed: true },
+        'put',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Include' }));
+
+    await waitFor(() => expect(requests.requests).toHaveLength(1));
+    expect(requests.requests[0]).toEqual({
+        featureName: 'excluded-flag',
+        excluded: false,
+    });
+});
+
+test('does not offer Include to users without admin access', async () => {
+    testServerRoute(
+        server,
+        '/api/admin/environment-sync/projects/default/status',
+        {
+            checkedAt: new Date().toISOString(),
+            summary: {
+                total: 3,
+                inSync: 1,
+                outOfSync: 0,
+                missing: 0,
+                excluded: 1,
+                errors: 0,
+            },
+            targets: [{ targetId: 1, targetName: 'QA' }],
+            features: [
+                {
+                    featureName: 'excluded-flag',
+                    status: 'excluded',
+                    targets: [{ targetId: 1, status: 'excluded' }],
+                },
+            ],
+        },
+    );
+
+    render(<ProjectSyncSummary projectId='default' enabled />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '1 excluded' }));
+
+    expect(await screen.findByText('Excluded flags (1)')).toBeInTheDocument();
+    expect(screen.getByText('excluded-flag')).toBeInTheDocument();
+    expect(
+        screen.queryByRole('button', { name: 'Include' }),
+    ).not.toBeInTheDocument();
+});
+
 test('does not claim everything is in sync when no target was checked', async () => {
     testServerRoute(
         server,
@@ -119,6 +213,7 @@ test('does not claim everything is in sync when no target was checked', async ()
                 inSync: 0,
                 outOfSync: 0,
                 missing: 0,
+                excluded: 0,
                 errors: 0,
             },
             targets: [],

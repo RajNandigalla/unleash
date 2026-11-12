@@ -6,6 +6,7 @@ import dbInit, {
     type ITestDb,
 } from '../../../test/e2e/helpers/database-init.js';
 import getLogger from '../../../test/fixtures/no-logger.js';
+import { SYNC_PROTOCOL_VERSION } from './environment-sync-config.js';
 
 let app: IUnleashTest;
 let db: ITestDb;
@@ -73,6 +74,7 @@ test('apply-configs replaces strategies and variants without touching enabled or
         .send({
             projectId: 'default',
             environment: 'production',
+            version: SYNC_PROTOCOL_VERSION,
             configs: [
                 {
                     featureName,
@@ -138,6 +140,7 @@ test('apply-configs replaces strategies and variants without touching enabled or
         .send({
             projectId: 'default',
             environment: 'production',
+            version: SYNC_PROTOCOL_VERSION,
             configs: [
                 {
                     featureName,
@@ -230,6 +233,7 @@ test('apply-configs preserves strategy order, variant payloads and overrides', a
         .send({
             projectId: 'default',
             environment: 'production',
+            version: SYNC_PROTOCOL_VERSION,
             configs: [
                 {
                     featureName,
@@ -288,6 +292,7 @@ test('apply-configs preserves strategy order, variant payloads and overrides', a
         .send({
             projectId: 'default',
             environment: 'production',
+            version: SYNC_PROTOCOL_VERSION,
             configs: [
                 {
                     featureName: envFeatureName,
@@ -347,7 +352,7 @@ test('fingerprints and config return the canonical configuration', async () => {
         })
         .expect(200);
 
-    expect(fingerprints.body.version).toBe(2);
+    expect(fingerprints.body.version).toBe(SYNC_PROTOCOL_VERSION);
     expect(fingerprints.body.environmentAvailable).toBe(true);
     expect(fingerprints.body.features[0]).toMatchObject({
         name: featureName,
@@ -373,4 +378,456 @@ test('fingerprints and config return the canonical configuration', async () => {
     expect(config.body.strategies[0].parameters.rollout).toBe('10');
     expect(config.body).not.toHaveProperty('enabled');
     expect(config.body).not.toHaveProperty('description');
+});
+
+test('apply-configs preserves environment-specific values on the target', async () => {
+    const featureName = 'env-specific-sync';
+    const ignoredConfig = {
+        parameters: ['loginUrl', 'config::/sso/loginUrl'],
+        variantPayloads: ['*::/redirectUrl'],
+        ignoredFeatures: [],
+    };
+
+    // Seed the target environment with its own values.
+    await app.request
+        .post('/api/admin/environment-sync/apply-configs')
+        .send({
+            projectId: 'default',
+            environment: 'production',
+            version: SYNC_PROTOCOL_VERSION,
+            configs: [
+                {
+                    featureName,
+                    strategies: [
+                        {
+                            name: 'flexibleRollout',
+                            parameters: {
+                                rollout: '50',
+                                stickiness: 'default',
+                                groupId: featureName,
+                                loginUrl: 'https://test.com',
+                                config: JSON.stringify({
+                                    sso: {
+                                        loginUrl: 'https://test.com',
+                                        timeout: 5,
+                                    },
+                                }),
+                            },
+                            constraints: [],
+                            segments: [],
+                            variants: [],
+                        },
+                    ],
+                    variants: [
+                        {
+                            name: 'a',
+                            weight: 1000,
+                            weightType: 'variable',
+                            stickiness: 'default',
+                            payload: {
+                                type: 'json',
+                                value: '{"redirectUrl":"https://test.com","n":1}',
+                            },
+                        },
+                    ],
+                },
+            ],
+        })
+        .expect(200);
+
+    // The source instance sends its configuration with the environment
+    // specific fields already removed.
+    const response = await app.request
+        .post('/api/admin/environment-sync/apply-configs')
+        .send({
+            projectId: 'default',
+            environment: 'production',
+            version: SYNC_PROTOCOL_VERSION,
+            ignoredConfig,
+            configs: [
+                {
+                    featureName,
+                    strategies: [
+                        {
+                            name: 'flexibleRollout',
+                            parameters: {
+                                rollout: '10',
+                                stickiness: 'default',
+                                groupId: featureName,
+                                config: JSON.stringify({
+                                    sso: { timeout: 10 },
+                                }),
+                            },
+                            constraints: [],
+                            segments: [],
+                            variants: [],
+                        },
+                    ],
+                    variants: [
+                        {
+                            name: 'a',
+                            weight: 1000,
+                            weightType: 'variable',
+                            stickiness: 'default',
+                            payload: {
+                                type: 'json',
+                                value: '{"n":2}',
+                            },
+                        },
+                    ],
+                },
+            ],
+        })
+        .expect(200);
+
+    expect(response.body.results[0]).toMatchObject({
+        featureName,
+        status: 'synced',
+    });
+
+    const updated = await app.request
+        .get(
+            `/api/admin/projects/default/features/${featureName}?variantEnvironments=true`,
+        )
+        .expect(200);
+
+    const production = updated.body.environments.find(
+        (environment: { name: string }) => environment.name === 'production',
+    );
+    const parameters = production.strategies[0].parameters;
+
+    expect(parameters.rollout).toBe('10');
+    expect(parameters.loginUrl).toBe('https://test.com');
+    expect(JSON.parse(parameters.config)).toEqual({
+        sso: { loginUrl: 'https://test.com', timeout: 10 },
+    });
+    expect(JSON.parse(production.variants[0].payload.value)).toEqual({
+        redirectUrl: 'https://test.com',
+        n: 2,
+    });
+});
+
+test('targets persist environment-specific values and exclusions', async () => {
+    const ignoredConfig = {
+        parameters: ['loginUrl', 'config::/sso/loginUrl'],
+        variantPayloads: ['*::/redirectUrl'],
+        ignoredFeatures: ['legacy-*'],
+    };
+
+    const created = await app.request
+        .post('/api/admin/environment-sync/targets')
+        .send({
+            name: 'Env-specific',
+            url: 'https://qa.example.com',
+            token: 'super-secret-token',
+            sourceEnvironment: 'development',
+            targetEnvironment: 'production',
+            ignoredConfig,
+        })
+        .expect(201);
+
+    expect(created.body.ignoredConfig).toEqual(ignoredConfig);
+
+    const updated = await app.request
+        .put(`/api/admin/environment-sync/targets/${created.body.id}`)
+        .send({
+            name: 'Env-specific',
+            url: 'https://qa.example.com',
+            sourceEnvironment: 'development',
+            targetEnvironment: 'production',
+            ignoredConfig: {
+                parameters: ['loginUrl'],
+                variantPayloads: [],
+                ignoredFeatures: [],
+                featureFields: [],
+            },
+        })
+        .expect(200);
+
+    expect(updated.body.ignoredConfig).toEqual({
+        parameters: ['loginUrl'],
+        variantPayloads: [],
+        ignoredFeatures: [],
+    });
+
+    const listed = await app.request
+        .get('/api/admin/environment-sync/targets')
+        .expect(200);
+
+    expect(
+        listed.body.targets.find(
+            (target: { id: number }) => target.id === created.body.id,
+        ).ignoredConfig,
+    ).toEqual({
+        parameters: ['loginUrl'],
+        variantPayloads: [],
+        ignoredFeatures: [],
+    });
+
+    await app.request
+        .delete(`/api/admin/environment-sync/targets/${created.body.id}`)
+        .expect(204);
+});
+
+test('catalog lists environment-specific candidates for an environment', async () => {
+    const featureName = 'catalog-sync-flag';
+
+    await app.request
+        .post('/api/admin/environment-sync/apply-configs')
+        .send({
+            projectId: 'default',
+            environment: 'production',
+            version: SYNC_PROTOCOL_VERSION,
+            configs: [
+                {
+                    featureName,
+                    strategies: [
+                        {
+                            name: 'flexibleRollout',
+                            parameters: {
+                                rollout: '50',
+                                stickiness: 'default',
+                                groupId: featureName,
+                                loginUrl: 'https://test.com',
+                                config: JSON.stringify({
+                                    sso: { loginUrl: 'https://test.com' },
+                                }),
+                            },
+                            constraints: [],
+                            segments: [],
+                            variants: [],
+                        },
+                    ],
+                    variants: [
+                        {
+                            name: 'a',
+                            weight: 1000,
+                            weightType: 'variable',
+                            stickiness: 'default',
+                            payload: {
+                                type: 'json',
+                                value: '{"redirectUrl":"https://test.com"}',
+                            },
+                        },
+                    ],
+                },
+            ],
+        })
+        .expect(200);
+
+    const peer = await app.request
+        .post('/api/admin/environment-sync/catalog')
+        .send({ environment: 'production' })
+        .expect(200);
+
+    expect(peer.body.version).toBe(SYNC_PROTOCOL_VERSION);
+    expect(peer.body.entries).toEqual(
+        expect.arrayContaining([
+            expect.objectContaining({ entry: 'loginUrl', kind: 'parameter' }),
+            expect.objectContaining({
+                entry: 'config::/sso/loginUrl',
+                kind: 'parameter',
+            }),
+            expect.objectContaining({
+                entry: '*::/redirectUrl',
+                kind: 'variantPayload',
+            }),
+        ]),
+    );
+
+    const local = await app.request
+        .post('/api/admin/environment-sync/projects/catalog')
+        .send({ sourceEnvironment: 'production' })
+        .expect(200);
+
+    expect(local.body.comparedWithTarget).toBe(false);
+    expect(local.body.sourceEnvironment).toBe('production');
+    expect(local.body.flags).toEqual(
+        expect.arrayContaining([
+            expect.objectContaining({ name: featureName }),
+        ]),
+    );
+    expect(
+        local.body.entries.find(
+            (entry: { entry: string }) => entry.entry === 'loginUrl',
+        ),
+    ).toMatchObject({
+        local: { samples: ['https://test.com'] },
+        differs: true,
+    });
+});
+
+test('ignored config can be updated independently of the connection', async () => {
+    const created = await app.request
+        .post('/api/admin/environment-sync/targets')
+        .send({
+            name: 'Ignored config target',
+            url: 'https://qa.example.com',
+            token: 'super-secret-token',
+            sourceEnvironment: 'development',
+            targetEnvironment: 'production',
+        })
+        .expect(201);
+
+    const updated = await app.request
+        .put(
+            `/api/admin/environment-sync/targets/${created.body.id}/ignored-config`,
+        )
+        .send({
+            ignoredConfig: {
+                parameters: ['loginUrl', 'config::/sso/loginUrl'],
+                variantPayloads: ['*::/redirectUrl'],
+                ignoredFeatures: ['legacy-*', 'tag:no-env-sync'],
+                featureFields: [],
+            },
+        })
+        .expect(200);
+
+    expect(updated.body.ignoredConfig).toEqual({
+        parameters: ['loginUrl', 'config::/sso/loginUrl'],
+        variantPayloads: ['*::/redirectUrl'],
+        ignoredFeatures: ['legacy-*', 'tag:no-env-sync'],
+    });
+    expect(updated.body.name).toBe('Ignored config target');
+    expect(updated.body.url).toBe('https://qa.example.com');
+
+    await app.request
+        .put(
+            `/api/admin/environment-sync/targets/${created.body.id}/ignored-config`,
+        )
+        .send({ ignoredConfig: { parameters: 'loginUrl' } })
+        .expect(400);
+
+    // A missing or partial body must not clear the stored exclusions.
+    await app.request
+        .put(
+            `/api/admin/environment-sync/targets/${created.body.id}/ignored-config`,
+        )
+        .send({})
+        .expect(400);
+    await app.request
+        .put(
+            `/api/admin/environment-sync/targets/${created.body.id}/ignored-config`,
+        )
+        .send({ ignoredConfig: { parameters: ['loginUrl'] } })
+        .expect(400);
+    // Omitting featureFields would delete every per-flag field exclusion.
+    await app.request
+        .put(
+            `/api/admin/environment-sync/targets/${created.body.id}/ignored-config`,
+        )
+        .send({
+            ignoredConfig: {
+                parameters: ['loginUrl'],
+                variantPayloads: [],
+                ignoredFeatures: [],
+            },
+        })
+        .expect(400);
+
+    const unchanged = await app.request
+        .get('/api/admin/environment-sync/targets')
+        .expect(200);
+    expect(
+        unchanged.body.targets.find(
+            (target: { id: number }) => target.id === created.body.id,
+        ).ignoredConfig,
+    ).toEqual({
+        parameters: ['loginUrl', 'config::/sso/loginUrl'],
+        variantPayloads: ['*::/redirectUrl'],
+        ignoredFeatures: ['legacy-*', 'tag:no-env-sync'],
+    });
+
+    await app.request
+        .delete(`/api/admin/environment-sync/targets/${created.body.id}`)
+        .expect(204);
+});
+
+test('malformed target bodies return 400 instead of 500', async () => {
+    await app.request
+        .post('/api/admin/environment-sync/targets')
+        .send({ token: 'super-secret-token' })
+        .expect(400);
+
+    await app.request
+        .post('/api/admin/environment-sync/targets')
+        .send({
+            name: 'QA',
+            url: 'https://qa.example.com',
+            token: 'super-secret-token',
+            sourceEnvironment: 'development',
+        })
+        .expect(400);
+
+    await app.request
+        .post('/api/admin/environment-sync/targets/test')
+        .send({})
+        .expect(400);
+});
+
+test('flags expose their tags for exclusion rules', async () => {
+    const featureName = 'catalog-sync-flag';
+
+    await app.request
+        .post(`/api/admin/features/${featureName}/tags`)
+        .send({ type: 'simple', value: 'no-env-sync' })
+        .expect(201);
+
+    const response = await app.request
+        .get('/api/admin/environment-sync/flags')
+        .expect(200);
+
+    expect(response.body.flags).toEqual(
+        expect.arrayContaining([
+            expect.objectContaining({
+                name: featureName,
+                tags: expect.arrayContaining(['no-env-sync']),
+            }),
+        ]),
+    );
+});
+
+test('a single flag can be excluded and included without touching the rest', async () => {
+    const created = await app.request
+        .post('/api/admin/environment-sync/targets')
+        .send({
+            name: 'Per flag target',
+            url: 'https://qa.example.com',
+            token: 'super-secret-token',
+            sourceEnvironment: 'development',
+            targetEnvironment: 'production',
+        })
+        .expect(201);
+
+    const added = await app.request
+        .put(
+            `/api/admin/environment-sync/targets/${created.body.id}/feature-exclusion`,
+        )
+        .send({ featureName: 'config-only-sync', excluded: true })
+        .expect(200);
+
+    expect(added.body).toEqual({ excluded: true, changed: true });
+
+    const listed = await app.request
+        .get('/api/admin/environment-sync/targets')
+        .expect(200);
+
+    expect(
+        listed.body.targets.find(
+            (target: { id: number }) => target.id === created.body.id,
+        ).ignoredConfig.ignoredFeatures,
+    ).toEqual(['config-only-sync']);
+
+    const removed = await app.request
+        .put(
+            `/api/admin/environment-sync/targets/${created.body.id}/feature-exclusion`,
+        )
+        .send({ featureName: 'config-only-sync', excluded: false })
+        .expect(200);
+
+    expect(removed.body).toEqual({ excluded: false, changed: true });
+
+    await app.request
+        .delete(`/api/admin/environment-sync/targets/${created.body.id}`)
+        .expect(204);
 });

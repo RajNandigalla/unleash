@@ -15,10 +15,16 @@ import { UPDATE_FEATURE_ENVIRONMENT } from 'component/providers/AccessProvider/p
 import useToast from 'hooks/useToast';
 import { formatUnknownError } from 'utils/formatUnknownError';
 import { useFeatureSyncCompare } from 'hooks/api/getters/useFeatureSyncCompare/useFeatureSyncCompare';
+import { useEnvironmentSyncApi } from 'hooks/api/actions/useEnvironmentSyncApi/useEnvironmentSyncApi';
 import { FeatureSyncDialog } from 'component/feature/FeatureSync/FeatureSyncDialog';
+import { SidebarModal } from 'component/common/SidebarModal/SidebarModal';
+import { EnvironmentSyncTargetConfigPage } from 'component/admin/environmentSync/EnvironmentSyncTargetConfigPage';
 import AccessContext from 'contexts/AccessContext';
 import { ADMIN } from 'component/providers/AccessProvider/permissions';
-import type { EnvironmentSyncTargetStatus } from 'interfaces/environmentSync';
+import type {
+    EnvironmentSyncConfig,
+    EnvironmentSyncTargetStatus,
+} from 'interfaces/environmentSync';
 
 type FeatureSyncOverviewProps = {
     projectId: string;
@@ -32,7 +38,33 @@ const statusLabel: Record<EnvironmentSyncTargetStatus, string> = {
     no_local_config: 'No source config',
     env_not_available: 'Environment unavailable',
     archived: 'Archived on target',
+    excluded: 'Excluded',
     error: 'Check failed',
+};
+
+const isJsonContainer = (value: string): boolean => {
+    try {
+        const parsed = JSON.parse(value);
+        return typeof parsed === 'object' && parsed !== null;
+    } catch {
+        return false;
+    }
+};
+
+const hasJsonFields = (config: EnvironmentSyncConfig | undefined): boolean => {
+    if (!config) {
+        return false;
+    }
+    const payloads = [
+        ...(config.variants ?? []),
+        ...config.strategies.flatMap((strategy) => strategy.variants ?? []),
+    ];
+    if (payloads.some((variant) => variant.payload?.type === 'json')) {
+        return true;
+    }
+    return config.strategies.some((strategy) =>
+        Object.values(strategy.parameters ?? {}).some(isJsonContainer),
+    );
 };
 
 const statusColor = (
@@ -44,7 +76,7 @@ const statusColor = (
     if (status === 'error' || status === 'archived') {
         return 'error';
     }
-    if (status === 'no_local_config') {
+    if (status === 'no_local_config' || status === 'excluded') {
         return 'neutral';
     }
     return 'warning';
@@ -68,6 +100,9 @@ export const FeatureSyncOverview = ({
         show,
     );
     const { hasAccess } = useContext(AccessContext);
+    const { setFeatureExclusion } = useEnvironmentSyncApi();
+    const [busyTargetId, setBusyTargetId] = useState<number | undefined>();
+    const [configTargetId, setConfigTargetId] = useState<number | undefined>();
     const [dialogTarget, setDialogTarget] = useState<number | undefined>();
     const [dialogAction, setDialogAction] = useState<'diff' | 'sync'>('diff');
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -85,7 +120,8 @@ export const FeatureSyncOverview = ({
         try {
             const fresh = await refetch();
             const notInSync = (fresh?.targets ?? []).filter(
-                (target) => target.status !== 'in_sync',
+                (target) =>
+                    target.status !== 'in_sync' && target.status !== 'excluded',
             ).length;
             if (notInSync === 0) {
                 setToastData({
@@ -104,6 +140,32 @@ export const FeatureSyncOverview = ({
             setToastApiError(formatUnknownError(error));
         } finally {
             setChecking(false);
+        }
+    };
+
+    const setExclusion = async (targetId: number, excluded: boolean) => {
+        setBusyTargetId(targetId);
+        try {
+            const result = await setFeatureExclusion(
+                targetId,
+                featureName,
+                excluded,
+            );
+            if (result.reason) {
+                setToastApiError(result.reason);
+            } else {
+                setToastData({
+                    type: 'success',
+                    text: excluded
+                        ? 'Flag excluded from sync'
+                        : 'Flag included in sync',
+                });
+            }
+            await refetch();
+        } catch (error) {
+            setToastApiError(formatUnknownError(error));
+        } finally {
+            setBusyTargetId(undefined);
         }
     };
 
@@ -226,6 +288,39 @@ export const FeatureSyncOverview = ({
                                     gap: 1,
                                 }}
                             >
+                                {hasAccess(ADMIN) &&
+                                    target.status !== 'excluded' &&
+                                    (hasJsonFields(target.local) ||
+                                        hasJsonFields(target.remote)) && (
+                                        <Button
+                                            size='small'
+                                            onClick={() =>
+                                                setConfigTargetId(
+                                                    target.targetId,
+                                                )
+                                            }
+                                        >
+                                            Field exclusions
+                                        </Button>
+                                    )}
+                                {hasAccess(ADMIN) && (
+                                    <Button
+                                        size='small'
+                                        onClick={() =>
+                                            setExclusion(
+                                                target.targetId,
+                                                target.status !== 'excluded',
+                                            )
+                                        }
+                                        disabled={
+                                            busyTargetId === target.targetId
+                                        }
+                                    >
+                                        {target.status === 'excluded'
+                                            ? 'Include'
+                                            : 'Exclude'}
+                                    </Button>
+                                )}
                                 <Button
                                     size='small'
                                     onClick={() =>
@@ -251,6 +346,27 @@ export const FeatureSyncOverview = ({
                         </Box>
                     ))}
                 </Box>
+            )}
+
+            {configTargetId !== undefined && (
+                <SidebarModal
+                    open
+                    onClose={() => {
+                        setConfigTargetId(undefined);
+                        void refetch();
+                    }}
+                    label='Field exclusions'
+                >
+                    <EnvironmentSyncTargetConfigPage
+                        targetId={configTargetId}
+                        featureFilter={featureName}
+                        autoEdit
+                        onClose={() => {
+                            setConfigTargetId(undefined);
+                            void refetch();
+                        }}
+                    />
+                </SidebarModal>
             )}
 
             <FeatureSyncDialog

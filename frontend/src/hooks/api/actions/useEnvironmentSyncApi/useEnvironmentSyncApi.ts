@@ -1,6 +1,10 @@
 import useAPI from '../useApi/useApi.js';
 import { formatApiPath } from 'utils/formatPath';
 import type {
+    EnvironmentSyncCatalogRequest,
+    EnvironmentSyncCatalogView,
+    EnvironmentSyncFeatureExclusionResult,
+    EnvironmentSyncIgnoredConfig,
     EnvironmentSyncSyncResponse,
     EnvironmentSyncTarget,
     EnvironmentSyncTargetInput,
@@ -40,6 +44,41 @@ export const useEnvironmentSyncApi = () => {
             {
                 method: 'PUT',
                 body: JSON.stringify(input),
+            },
+            requestId,
+        );
+        const response = await makeRequest(request.caller, request.id);
+        return response.json();
+    };
+
+    const updateTargetIgnoredConfig = async (
+        id: number,
+        ignoredConfig: EnvironmentSyncIgnoredConfig,
+    ): Promise<EnvironmentSyncTarget> => {
+        const requestId = 'updateEnvironmentSyncIgnoredConfig';
+        const request = createRequest(
+            `${ENDPOINT}/targets/${id}/ignored-config`,
+            {
+                method: 'PUT',
+                body: JSON.stringify({ ignoredConfig }),
+            },
+            requestId,
+        );
+        const response = await makeRequest(request.caller, request.id);
+        return response.json();
+    };
+
+    const setFeatureExclusion = async (
+        id: number,
+        featureName: string,
+        excluded: boolean,
+    ): Promise<EnvironmentSyncFeatureExclusionResult> => {
+        const requestId = 'setEnvironmentSyncFeatureExclusion';
+        const request = createRequest(
+            `${ENDPOINT}/targets/${id}/feature-exclusion`,
+            {
+                method: 'PUT',
+                body: JSON.stringify({ featureName, excluded }),
             },
             requestId,
         );
@@ -89,6 +128,22 @@ export const useEnvironmentSyncApi = () => {
         return response.json();
     };
 
+    const getCatalog = async (
+        input: EnvironmentSyncCatalogRequest,
+    ): Promise<EnvironmentSyncCatalogView> => {
+        const requestId = 'environmentSyncCatalog';
+        const request = createRequest(
+            `${ENDPOINT}/projects/catalog`,
+            {
+                method: 'POST',
+                body: JSON.stringify(input),
+            },
+            requestId,
+        );
+        const response = await makeRequest(request.caller, request.id);
+        return response.json();
+    };
+
     const sync = async (input: {
         projectId: string;
         featureNames: string[];
@@ -115,9 +170,12 @@ export const useEnvironmentSyncApi = () => {
     return {
         createTarget,
         updateTarget,
+        updateTargetIgnoredConfig,
+        setFeatureExclusion,
         deleteTarget,
         testTarget,
         testTargetById,
+        getCatalog,
         sync,
         loading,
         errors,

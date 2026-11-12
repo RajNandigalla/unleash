@@ -41,6 +41,7 @@ const targetStatusLabel: Record<EnvironmentSyncTargetStatus, string> = {
     no_local_config: 'No config',
     env_not_available: 'Env unavailable',
     archived: 'Archived',
+    excluded: 'Excluded',
     error: 'Error',
 };
 

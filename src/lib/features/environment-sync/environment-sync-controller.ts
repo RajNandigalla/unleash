@@ -22,9 +22,11 @@ import type {
     EnvironmentSyncService,
     EnvironmentSyncTargetInput,
 } from './environment-sync-service.js';
-import type {
-    EnvironmentSyncStrategy,
-    EnvironmentSyncVariant,
+import {
+    parseIgnoredConfig,
+    SYNC_PROTOCOL_VERSION,
+    type EnvironmentSyncStrategy,
+    type EnvironmentSyncVariant,
 } from './environment-sync-config.js';
 import type { EnvironmentSyncApplyResult } from './environment-sync-client.js';
 
@@ -100,6 +102,24 @@ export class EnvironmentSyncController extends Controller {
             acceptAnyContentType: true,
         });
         this.route({
+            method: 'put',
+            path: '/targets/:id/ignored-config',
+            handler: this.updateTargetIgnoredConfig,
+            permission: ADMIN,
+        });
+        this.route({
+            method: 'put',
+            path: '/targets/:id/feature-exclusion',
+            handler: this.setFeatureExclusion,
+            permission: UPDATE_FEATURE_ENVIRONMENT,
+        });
+        this.route({
+            method: 'get',
+            path: '/flags',
+            handler: this.getFlags,
+            permission: ADMIN,
+        });
+        this.route({
             method: 'get',
             path: '/projects/:projectId/status',
             handler: this.getProjectStatus,
@@ -115,6 +135,18 @@ export class EnvironmentSyncController extends Controller {
             method: 'post',
             path: '/projects/:projectId/sync',
             handler: this.sync,
+            permission: UPDATE_FEATURE_ENVIRONMENT,
+        });
+        this.route({
+            method: 'post',
+            path: '/projects/catalog',
+            handler: this.getCatalog,
+            permission: ADMIN,
+        });
+        this.route({
+            method: 'post',
+            path: '/catalog',
+            handler: this.getCatalogSnapshot,
             permission: UPDATE_FEATURE_ENVIRONMENT,
         });
         this.route({
@@ -167,11 +199,48 @@ export class EnvironmentSyncController extends Controller {
         res.json(target);
     }
 
+    private async updateTargetIgnoredConfig(
+        req: IAuthRequest<TargetParams, unknown, { ignoredConfig?: unknown }>,
+        res: Response,
+    ): Promise<void> {
+        res.json(
+            await this.environmentSyncService.updateTargetIgnoredConfig(
+                Number(req.params.id),
+                req.body?.ignoredConfig,
+                req.audit,
+            ),
+        );
+    }
+
+    private async setFeatureExclusion(
+        req: IAuthRequest<
+            TargetParams,
+            unknown,
+            { featureName?: string; excluded?: boolean }
+        >,
+        res: Response,
+    ): Promise<void> {
+        res.json(
+            await this.environmentSyncService.setFeatureExclusion(
+                Number(req.params.id),
+                req.body ?? {},
+                req.audit,
+            ),
+        );
+    }
+
+    private async getFlags(_req: Request, res: Response): Promise<void> {
+        res.json({ flags: await this.environmentSyncService.getFlags() });
+    }
+
     private async deleteTarget(
         req: IAuthRequest<TargetParams>,
         res: Response,
     ): Promise<void> {
-        await this.environmentSyncService.deleteTarget(Number(req.params.id));
+        await this.environmentSyncService.deleteTarget(
+            Number(req.params.id),
+            req.audit,
+        );
         res.status(204).end();
     }
 
@@ -255,6 +324,53 @@ export class EnvironmentSyncController extends Controller {
         res.json(results);
     }
 
+    private async getCatalog(
+        req: IAuthRequest<
+            unknown,
+            unknown,
+            {
+                sourceEnvironment?: string;
+                targetEnvironment?: string;
+                targetId?: number;
+                url?: string;
+                token?: string;
+            }
+        >,
+        res: Response,
+    ): Promise<void> {
+        res.json(await this.environmentSyncService.getCatalog(req.body ?? {}));
+    }
+
+    private async getCatalogSnapshot(
+        req: IAuthRequest<
+            unknown,
+            unknown,
+            { environment?: string; featureNames?: string[] }
+        >,
+        res: Response,
+    ): Promise<void> {
+        const { environment, featureNames } = req.body;
+        if (!environment) {
+            throw new BadDataError('environment is required');
+        }
+        if (featureNames !== undefined) {
+            if (!Array.isArray(featureNames)) {
+                throw new BadDataError('featureNames must be an array');
+            }
+            if (featureNames.length > 2000) {
+                throw new BadDataError(
+                    'featureNames can contain at most 2000 names',
+                );
+            }
+        }
+        res.json(
+            await this.environmentSyncService.getCatalogSnapshot(
+                environment,
+                featureNames,
+            ),
+        );
+    }
+
     private async getFingerprints(
         req: IAuthRequest<
             unknown,
@@ -263,11 +379,13 @@ export class EnvironmentSyncController extends Controller {
                 projectId?: string;
                 environment?: string;
                 featureNames?: string[];
+                ignoredConfig?: unknown;
             }
         >,
         res: Response,
     ): Promise<void> {
-        const { projectId, environment, featureNames } = req.body;
+        const { projectId, environment, featureNames, ignoredConfig } =
+            req.body;
         if (!projectId || !environment) {
             throw new BadDataError('projectId and environment are required');
         }
@@ -276,6 +394,7 @@ export class EnvironmentSyncController extends Controller {
                 projectId,
                 environment,
                 featureNames,
+                parseIgnoredConfig(ignoredConfig),
             ),
         );
     }
@@ -288,11 +407,12 @@ export class EnvironmentSyncController extends Controller {
                 projectId?: string;
                 environment?: string;
                 featureName?: string;
+                ignoredConfig?: unknown;
             }
         >,
         res: Response,
     ): Promise<void> {
-        const { projectId, environment, featureName } = req.body;
+        const { projectId, environment, featureName, ignoredConfig } = req.body;
         if (!projectId || !environment || !featureName) {
             throw new BadDataError(
                 'projectId, environment and featureName are required',
@@ -303,6 +423,7 @@ export class EnvironmentSyncController extends Controller {
                 projectId,
                 environment,
                 featureName,
+                parseIgnoredConfig(ignoredConfig),
             ),
         );
     }
@@ -319,16 +440,29 @@ export class EnvironmentSyncController extends Controller {
                     strategies: EnvironmentSyncStrategy[];
                     variants: EnvironmentSyncVariant[];
                 }[];
+                version?: number;
+                ignoredConfig?: unknown;
             }
         >,
         res: Response,
     ): Promise<void> {
-        const { projectId, environment, configs } = req.body;
+        const { projectId, environment, configs, version, ignoredConfig } =
+            req.body;
         if (!projectId || !environment || !Array.isArray(configs)) {
             throw new BadDataError(
                 'projectId, environment and configs are required',
             );
         }
+
+        // A peer that predates environment-specific values would ignore them
+        // and overwrite the target's own values. Refuse instead.
+        if (version !== SYNC_PROTOCOL_VERSION) {
+            throw new BadDataError(
+                `This instance uses environment sync version ${SYNC_PROTOCOL_VERSION}; the caller sent ${version ?? 'none'}. Upgrade the instance that started the sync.`,
+            );
+        }
+
+        const ignored = parseIgnoredConfig(ignoredConfig);
 
         // Replacing an environment configuration always deletes and recreates
         // the strategies, and creates the flag when it does not exist yet.
@@ -357,10 +491,21 @@ export class EnvironmentSyncController extends Controller {
                 if (!config.featureName) {
                     throw new BadDataError('featureName is required');
                 }
+                const preserved =
+                    await this.environmentSyncService.preserveEnvironmentSpecificValues(
+                        projectId,
+                        environment,
+                        {
+                            featureName: config.featureName,
+                            strategies: config.strategies ?? [],
+                            variants: config.variants ?? [],
+                        },
+                        ignored,
+                    );
                 const strategies =
                     await this.environmentSyncService.resolveSegmentIds(
                         projectId,
-                        config.strategies ?? [],
+                        preserved.strategies,
                     );
                 const replaceStrategies: Unsaved<IStrategyConfig>[] =
                     strategies.map((strategy) => ({
@@ -382,8 +527,7 @@ export class EnvironmentSyncController extends Controller {
                                 config.featureName,
                                 environment,
                                 replaceStrategies,
-                                (config.variants ??
-                                    []) as unknown as IVariant[],
+                                preserved.variants as unknown as IVariant[],
                                 req.audit,
                             ),
                     );

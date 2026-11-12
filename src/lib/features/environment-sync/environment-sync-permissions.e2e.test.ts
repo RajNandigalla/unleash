@@ -7,6 +7,7 @@ import {
     setupAppWithAuth,
 } from '../../../test/e2e/helpers/test-helper.js';
 import getLogger from '../../../test/fixtures/no-logger.js';
+import { SYNC_PROTOCOL_VERSION } from './environment-sync-config.js';
 import {
     RoleName,
     SYSTEM_USER_AUDIT,
@@ -25,6 +26,7 @@ const adminEmail = 'environment-sync-admin@example.com';
 const configPayload = (featureName: string) => ({
     projectId: 'default',
     environment: 'production',
+    version: SYNC_PROTOCOL_VERSION,
     configs: [{ featureName, strategies: [], variants: [] }],
 });
 

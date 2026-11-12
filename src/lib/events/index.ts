@@ -173,6 +173,12 @@ export const PROJECT_UNFAVORITED = 'project-unfavorited' as const;
 export const FEATURES_EXPORTED = 'features-exported' as const;
 export const FEATURES_IMPORTED = 'features-imported' as const;
 export const FEATURE_CONFIGS_SYNCED = 'feature-configs-synced' as const;
+export const ENVIRONMENT_SYNC_TARGET_CHANGED =
+    'environment-sync-target-changed' as const;
+export const ENVIRONMENT_SYNC_TARGET_CONFIG_UPDATED =
+    'environment-sync-target-config-updated' as const;
+export const ENVIRONMENT_SYNC_FEATURE_EXCLUSION_CHANGED =
+    'environment-sync-feature-exclusion-changed' as const;
 
 export const SERVICE_ACCOUNT_CREATED = 'service-account-created' as const;
 export const SERVICE_ACCOUNT_UPDATED = 'service-account-updated' as const;
@@ -379,6 +385,9 @@ export const IEventTypes = [
     FEATURES_EXPORTED,
     FEATURES_IMPORTED,
     FEATURE_CONFIGS_SYNCED,
+    ENVIRONMENT_SYNC_TARGET_CHANGED,
+    ENVIRONMENT_SYNC_TARGET_CONFIG_UPDATED,
+    ENVIRONMENT_SYNC_FEATURE_EXCLUSION_CHANGED,
     SERVICE_ACCOUNT_CREATED,
     SERVICE_ACCOUNT_DELETED,
     SERVICE_ACCOUNT_UPDATED,

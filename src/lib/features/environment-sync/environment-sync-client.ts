@@ -1,11 +1,15 @@
 import type { IUnleashConfig } from '../../types/option.js';
 import { validateUrl } from '../../addons/validate-url.js';
 import { fetchPinned } from '../../addons/addon.js';
-import type {
-    EnvironmentSyncConfig,
-    EnvironmentSyncStrategy,
-    EnvironmentSyncVariant,
+import {
+    emptyIgnoredConfig,
+    SYNC_PROTOCOL_VERSION,
+    type EnvironmentSyncConfig,
+    type EnvironmentSyncIgnoredConfig,
+    type EnvironmentSyncStrategy,
+    type EnvironmentSyncVariant,
 } from './environment-sync-config.js';
+import type { EnvironmentSyncCatalogEntry } from './environment-sync-catalog.js';
 
 export interface EnvironmentSyncRemoteTarget {
     name: string;
@@ -28,6 +32,14 @@ export interface EnvironmentSyncFingerprints {
     version: number;
     environmentAvailable: boolean;
     features: EnvironmentSyncFingerprint[];
+}
+
+export interface EnvironmentSyncRemoteCatalog {
+    version: number;
+    environment: string;
+    entries: EnvironmentSyncCatalogEntry[];
+    flags: string[];
+    truncated: boolean;
 }
 
 export interface EnvironmentSyncRemoteConfig extends EnvironmentSyncConfig {
@@ -75,18 +87,29 @@ export interface IEnvironmentSyncClient {
             projectId: string;
             environment: string;
             featureNames?: string[];
+            ignoredConfig?: EnvironmentSyncIgnoredConfig;
         },
     ): Promise<EnvironmentSyncFingerprints>;
     config(
         target: EnvironmentSyncRemoteTarget,
-        input: { projectId: string; environment: string; featureName: string },
+        input: {
+            projectId: string;
+            environment: string;
+            featureName: string;
+            ignoredConfig?: EnvironmentSyncIgnoredConfig;
+        },
     ): Promise<EnvironmentSyncRemoteConfig>;
+    catalog(
+        target: EnvironmentSyncRemoteTarget,
+        input: { environment: string; featureNames?: string[] },
+    ): Promise<EnvironmentSyncRemoteCatalog>;
     applyConfigs(
         target: EnvironmentSyncRemoteTarget,
         input: {
             projectId: string;
             environment: string;
             configs: EnvironmentSyncApplyConfigInput[];
+            ignoredConfig?: EnvironmentSyncIgnoredConfig;
         },
     ): Promise<EnvironmentSyncApplyResponse>;
 }
@@ -105,6 +128,7 @@ const TIMEOUTS = {
     test: 10_000,
     fingerprints: 10_000,
     config: 10_000,
+    catalog: 30_000,
     apply: 60_000,
 } as const;
 
@@ -232,6 +256,7 @@ export class EnvironmentSyncClient implements IEnvironmentSyncClient {
             projectId: string;
             environment: string;
             featureNames?: string[];
+            ignoredConfig?: EnvironmentSyncIgnoredConfig;
         },
     ): Promise<EnvironmentSyncFingerprints> {
         return this.request<EnvironmentSyncFingerprints>(
@@ -240,14 +265,22 @@ export class EnvironmentSyncClient implements IEnvironmentSyncClient {
             {
                 method: 'POST',
                 timeout: TIMEOUTS.fingerprints,
-                body: input,
+                body: {
+                    ...input,
+                    ignoredConfig: input.ignoredConfig ?? emptyIgnoredConfig(),
+                },
             },
         );
     }
 
     async config(
         target: EnvironmentSyncRemoteTarget,
-        input: { projectId: string; environment: string; featureName: string },
+        input: {
+            projectId: string;
+            environment: string;
+            featureName: string;
+            ignoredConfig?: EnvironmentSyncIgnoredConfig;
+        },
     ): Promise<EnvironmentSyncRemoteConfig> {
         return this.request<EnvironmentSyncRemoteConfig>(
             `${normalizeUrl(target.url)}/api/admin/environment-sync/config`,
@@ -255,6 +288,24 @@ export class EnvironmentSyncClient implements IEnvironmentSyncClient {
             {
                 method: 'POST',
                 timeout: TIMEOUTS.config,
+                body: {
+                    ...input,
+                    ignoredConfig: input.ignoredConfig ?? emptyIgnoredConfig(),
+                },
+            },
+        );
+    }
+
+    async catalog(
+        target: EnvironmentSyncRemoteTarget,
+        input: { environment: string; featureNames?: string[] },
+    ): Promise<EnvironmentSyncRemoteCatalog> {
+        return this.request<EnvironmentSyncRemoteCatalog>(
+            `${normalizeUrl(target.url)}/api/admin/environment-sync/catalog`,
+            target.token,
+            {
+                method: 'POST',
+                timeout: TIMEOUTS.catalog,
                 body: input,
             },
         );
@@ -266,6 +317,7 @@ export class EnvironmentSyncClient implements IEnvironmentSyncClient {
             projectId: string;
             environment: string;
             configs: EnvironmentSyncApplyConfigInput[];
+            ignoredConfig?: EnvironmentSyncIgnoredConfig;
         },
     ): Promise<EnvironmentSyncApplyResponse> {
         return this.request<EnvironmentSyncApplyResponse>(
@@ -274,7 +326,11 @@ export class EnvironmentSyncClient implements IEnvironmentSyncClient {
             {
                 method: 'POST',
                 timeout: TIMEOUTS.apply,
-                body: input,
+                body: {
+                    ...input,
+                    version: SYNC_PROTOCOL_VERSION,
+                    ignoredConfig: input.ignoredConfig ?? emptyIgnoredConfig(),
+                },
             },
         );
     }

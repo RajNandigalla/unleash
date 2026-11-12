@@ -219,6 +219,7 @@ export const EnvironmentSyncTargetForm = ({
             open={open}
             onClose={onClose}
             label={target ? 'Edit environment' : 'Connect environment'}
+            width={820}
         >
             <Box
                 sx={{
@@ -333,6 +334,12 @@ export const EnvironmentSyncTargetForm = ({
                         {loadingEnvironments ? 'Loading…' : 'Load environments'}
                     </Button>
                 </Box>
+
+                <Typography color='text.secondary'>
+                    Environment-specific values and flag exclusions are managed
+                    from the Environment sync list, using the configuration
+                    button on the environment row.
+                </Typography>
 
                 <FormControlLabel
                     control={

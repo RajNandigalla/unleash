@@ -46,6 +46,7 @@ const statusMeta: Record<
     no_local_config: { color: 'neutral', label: 'No source config' },
     env_not_available: { color: 'error', label: 'Environment unavailable' },
     archived: { color: 'error', label: 'Archived on target' },
+    excluded: { color: 'neutral', label: 'Excluded' },
     error: { color: 'error', label: 'Check failed' },
 };
 
@@ -277,6 +278,13 @@ export const FeatureSyncDialog = ({
                                             The flag does not exist on the
                                             target. Sync will create it disabled
                                             and apply this configuration.
+                                        </Alert>
+                                    )}
+                                    {current.status === 'excluded' && (
+                                        <Alert severity='info'>
+                                            This flag is excluded from this sync
+                                            target. It is never compared or
+                                            synced.
                                         </Alert>
                                     )}
 

@@ -5,6 +5,7 @@ import { useProjectSyncStatus } from 'hooks/api/getters/useProjectSyncStatus/use
 import { formatUnknownError } from 'utils/formatUnknownError';
 import useToast from 'hooks/useToast';
 import { OutOfSyncFlagsDialog } from 'component/feature/FeatureSync/OutOfSyncFlagsDialog';
+import { ExcludedFlagsDialog } from 'component/feature/FeatureSync/ExcludedFlagsDialog';
 
 type ProjectSyncSummaryProps = {
     projectId: string;
@@ -20,6 +21,7 @@ export const ProjectSyncSummary = ({
         enabled,
     );
     const [reviewOpen, setReviewOpen] = useState(false);
+    const [excludedOpen, setExcludedOpen] = useState(false);
     const [checking, setChecking] = useState(false);
     const { setToastData, setToastApiError } = useToast();
 
@@ -79,14 +81,30 @@ export const ProjectSyncSummary = ({
                                 No environments connected
                             </Badge>
                         ) : summary.outOfSync === 0 && summary.errors === 0 ? (
-                            <Badge color='success'>
-                                All {summary.total} flags in sync
-                            </Badge>
+                            summary.excluded > 0 ? (
+                                <Badge color='success'>
+                                    {summary.inSync} of {summary.total} flags in
+                                    sync
+                                </Badge>
+                            ) : (
+                                <Badge color='success'>
+                                    All {summary.total} flags in sync
+                                </Badge>
+                            )
                         ) : (
                             <Badge color='warning'>
                                 {summary.outOfSync} of {summary.total} flags out
                                 of sync
                             </Badge>
+                        )}
+                        {summary.excluded > 0 && (
+                            <Button
+                                size='small'
+                                variant='outlined'
+                                onClick={() => setExcludedOpen(true)}
+                            >
+                                {summary.excluded} excluded
+                            </Button>
                         )}
                         {summary.errors > 0 && (
                             <Badge
@@ -132,6 +150,15 @@ export const ProjectSyncSummary = ({
                     </Typography>
                 ) : null}
             </Box>
+
+            <ExcludedFlagsDialog
+                open={excludedOpen}
+                onClose={() => setExcludedOpen(false)}
+                status={status}
+                onChanged={async () => {
+                    await refresh();
+                }}
+            />
 
             <OutOfSyncFlagsDialog
                 open={reviewOpen}

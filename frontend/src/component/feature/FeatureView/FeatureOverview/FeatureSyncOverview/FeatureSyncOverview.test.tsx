@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from 'vitest';
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { render } from 'utils/testRenderer';
 import { testServerRoute, testServerSetup } from 'utils/testServer';
 import { http, HttpResponse } from 'msw';
@@ -94,6 +94,11 @@ const setupApi = (
                 sourceEnvironment: 'development',
                 targetEnvironment: 'production',
                 enabled: true,
+                ignoredConfig: {
+                    parameters: [],
+                    variantPayloads: [],
+                    ignoredFeatures: [],
+                },
                 createdAt: new Date().toISOString(),
                 createdBy: 'admin',
                 hasToken: true,
@@ -170,4 +175,178 @@ test('Recheck refreshes the status after an edit', async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Recheck' }));
 
     expect(await screen.findByText('In sync')).toBeInTheDocument();
+});
+
+test('Include re-enables a flag excluded from sync', async () => {
+    setupApi();
+    const requests = testServerRoute(
+        server,
+        '/api/admin/environment-sync/targets/1/feature-exclusion',
+        { excluded: false, changed: true },
+        'put',
+    );
+    server.use(
+        http.get(
+            '/api/admin/environment-sync/projects/default/features/example-flag/compare',
+            () =>
+                HttpResponse.json({
+                    featureName: 'example-flag',
+                    targets: [
+                        {
+                            targetId: 1,
+                            targetName: 'Remote',
+                            sourceEnvironment: 'development',
+                            targetEnvironment: 'production',
+                            status: 'excluded',
+                            differences: [],
+                        },
+                    ],
+                }),
+        ),
+    );
+
+    renderOverview();
+
+    expect(await screen.findByText('Excluded')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Include' }));
+
+    await waitFor(() => expect(requests.requests).toHaveLength(1));
+    expect(requests.requests[0]).toEqual({
+        featureName: 'example-flag',
+        excluded: false,
+    });
+});
+
+test('does not offer exclusion controls without admin access', async () => {
+    setupApi();
+
+    render(
+        <FeatureSyncOverview projectId='default' featureName='example-flag' />,
+        { permissions: [{ permission: UPDATE_FEATURE_ENVIRONMENT }] },
+    );
+
+    expect(await screen.findByText('Out of sync')).toBeInTheDocument();
+    expect(
+        screen.queryByRole('button', { name: 'Exclude' }),
+    ).not.toBeInTheDocument();
+    expect(
+        screen.queryByRole('button', { name: 'Include' }),
+    ).not.toBeInTheDocument();
+});
+
+test('Exclude adds an exact exclusion for the flag', async () => {
+    setupApi();
+    const requests = testServerRoute(
+        server,
+        '/api/admin/environment-sync/targets/1/feature-exclusion',
+        { excluded: true, changed: true },
+        'put',
+    );
+
+    renderOverview();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Exclude' }));
+
+    await waitFor(() => expect(requests.requests).toHaveLength(1));
+    expect(requests.requests[0]).toEqual({
+        featureName: 'example-flag',
+        excluded: true,
+    });
+});
+
+test('opens field exclusions scoped to the flag', async () => {
+    setupApi();
+    testServerRoute(server, '/api/admin/environment-sync/flags', {
+        flags: [{ name: 'example-flag', project: 'default', tags: [] }],
+    });
+    testServerRoute(
+        server,
+        '/api/admin/environment-sync/projects/catalog',
+        {
+            sourceEnvironment: 'development',
+            targetEnvironment: 'production',
+            comparedWithTarget: true,
+            entries: [
+                {
+                    entry: '*::/limit',
+                    kind: 'variantPayload',
+                    differs: true,
+                    local: {
+                        entry: '*::/limit',
+                        kind: 'variantPayload',
+                        flagCount: 1,
+                        usageCount: 1,
+                        samples: ['100'],
+                        valuesByFlag: { 'example-flag': '100' },
+                    },
+                    remote: {
+                        entry: '*::/limit',
+                        kind: 'variantPayload',
+                        flagCount: 1,
+                        usageCount: 1,
+                        samples: ['200'],
+                        valuesByFlag: { 'example-flag': '200' },
+                    },
+                },
+            ],
+            flags: [{ name: 'example-flag', project: 'default', tags: [] }],
+            truncated: false,
+        },
+        'post',
+    );
+
+    renderOverview();
+
+    fireEvent.click(
+        await screen.findByRole('button', { name: 'Field exclusions' }),
+    );
+
+    expect(await screen.findByText(/Editing fields for/)).toBeInTheDocument();
+
+    fireEvent.mouseDown(await screen.findByRole('combobox'));
+    expect(
+        await screen.findByRole('option', { name: /limit/ }),
+    ).toBeInTheDocument();
+});
+
+test('hides field exclusions when the flag has no JSON fields', async () => {
+    setupApi();
+    server.use(
+        http.get(
+            '/api/admin/environment-sync/projects/default/features/example-flag/compare',
+            () =>
+                HttpResponse.json({
+                    featureName: 'example-flag',
+                    targets: [
+                        {
+                            targetId: 1,
+                            targetName: 'Remote',
+                            sourceEnvironment: 'development',
+                            targetEnvironment: 'production',
+                            status: 'drift',
+                            differences: [],
+                            local: {
+                                strategies: [
+                                    {
+                                        name: 'flexibleRollout',
+                                        parameters: { rollout: '100' },
+                                        constraints: [],
+                                        segments: [],
+                                        variants: [],
+                                    },
+                                ],
+                                variants: [],
+                            },
+                        },
+                    ],
+                }),
+        ),
+    );
+
+    renderOverview();
+
+    expect(await screen.findByText('Out of sync')).toBeInTheDocument();
+    expect(
+        screen.queryByRole('button', { name: 'Field exclusions' }),
+    ).not.toBeInTheDocument();
 });

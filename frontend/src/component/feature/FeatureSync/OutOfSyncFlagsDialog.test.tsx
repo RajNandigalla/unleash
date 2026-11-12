@@ -39,6 +39,7 @@ test('does not force-sync targets where the flag is already in sync', async () =
                     inSync: 0,
                     outOfSync: 2,
                     missing: 0,
+                    excluded: 0,
                     errors: 0,
                 },
                 targets: [

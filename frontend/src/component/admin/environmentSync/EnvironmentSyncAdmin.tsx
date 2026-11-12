@@ -9,11 +9,13 @@ import {
     TableCell,
     TableHead,
     TableRow,
+    Tooltip,
     Typography,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import SyncIcon from '@mui/icons-material/Sync';
+import RuleIcon from '@mui/icons-material/Rule';
 import { ADMIN } from 'component/providers/AccessProvider/permissions';
 import { PermissionGuard } from 'component/common/PermissionGuard/PermissionGuard';
 import { PageContent } from 'component/common/PageContent/PageContent';
@@ -21,11 +23,20 @@ import { PageHeader } from 'component/common/PageHeader/PageHeader';
 import { Dialogue } from 'component/common/Dialogue/Dialogue';
 import { Badge } from 'component/common/Badge/Badge';
 import { useEnvironmentSyncTargets } from 'hooks/api/getters/useEnvironmentSyncTargets/useEnvironmentSyncTargets';
+import { useEnvironmentSyncFlags } from 'hooks/api/getters/useEnvironmentSyncFlags/useEnvironmentSyncFlags';
+import { matchesIgnoreRule } from './ignoreRuleMatches';
 import { useEnvironmentSyncApi } from 'hooks/api/actions/useEnvironmentSyncApi/useEnvironmentSyncApi';
 import useToast from 'hooks/useToast';
 import { formatUnknownError } from 'utils/formatUnknownError';
 import { EnvironmentSyncTargetForm } from './EnvironmentSyncTargetForm';
+import { EnvironmentSyncTargetConfigPage } from './EnvironmentSyncTargetConfigPage';
+import { SidebarModal } from 'component/common/SidebarModal/SidebarModal';
 import type { EnvironmentSyncTarget } from 'interfaces/environmentSync';
+
+const ignoredEntryCount = (target: EnvironmentSyncTarget): number =>
+    (target.ignoredConfig?.parameters.length ?? 0) +
+    (target.ignoredConfig?.variantPayloads.length ?? 0) +
+    (target.ignoredConfig?.ignoredFeatures.length ?? 0);
 
 export const EnvironmentSyncAdmin = () => (
     <PermissionGuard permissions={[ADMIN]}>
@@ -36,6 +47,7 @@ export const EnvironmentSyncAdmin = () => (
 const EnvironmentSyncPage = () => {
     const { targets, tokenStorageConfigured, loading, refetch } =
         useEnvironmentSyncTargets();
+    const { flags } = useEnvironmentSyncFlags();
     const { deleteTarget, testTargetById } = useEnvironmentSyncApi();
     const { setToastData, setToastApiError } = useToast();
 
@@ -45,6 +57,9 @@ const EnvironmentSyncPage = () => {
         EnvironmentSyncTarget | undefined
     >();
     const [testingId, setTestingId] = useState<number | null>(null);
+    const [configTarget, setConfigTarget] = useState<
+        EnvironmentSyncTarget | undefined
+    >();
 
     const openCreate = () => {
         setEditing(undefined);
@@ -152,74 +167,186 @@ const EnvironmentSyncPage = () => {
                                 <TableCell>Sync from → to</TableCell>
                                 <TableCell>Last synced</TableCell>
                                 <TableCell>Status</TableCell>
+                                <TableCell>Excluded</TableCell>
                                 <TableCell align='right'>Actions</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {targets.map((target) => (
-                                <TableRow key={target.id}>
-                                    <TableCell>
-                                        <Typography sx={{ fontWeight: 'bold' }}>
-                                            {target.name}
-                                        </Typography>
-                                        <Typography
-                                            variant='body2'
-                                            color='text.secondary'
+                            {targets.map((target) => {
+                                const excluded = flags.filter((flag) =>
+                                    target.ignoredConfig.ignoredFeatures.some(
+                                        (rule) => matchesIgnoreRule(flag, rule),
+                                    ),
+                                );
+                                return (
+                                    <TableRow key={target.id}>
+                                        <TableCell>
+                                            <Typography
+                                                sx={{ fontWeight: 'bold' }}
+                                            >
+                                                {target.name}
+                                            </Typography>
+                                            <Typography
+                                                variant='body2'
+                                                color='text.secondary'
+                                            >
+                                                {target.url}
+                                            </Typography>
+                                            {ignoredEntryCount(target) > 0 && (
+                                                <Typography
+                                                    variant='body2'
+                                                    color='text.secondary'
+                                                >
+                                                    {ignoredEntryCount(target)}{' '}
+                                                    environment-specific{' '}
+                                                    {ignoredEntryCount(
+                                                        target,
+                                                    ) === 1
+                                                        ? 'value'
+                                                        : 'values'}{' '}
+                                                    configured
+                                                </Typography>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {target.project || 'Same project'}
+                                        </TableCell>
+                                        <TableCell>
+                                            {target.sourceEnvironment} →{' '}
+                                            {target.targetEnvironment}
+                                        </TableCell>
+                                        <TableCell>
+                                            {target.lastSyncedAt
+                                                ? new Date(
+                                                      target.lastSyncedAt,
+                                                  ).toLocaleString()
+                                                : 'Never'}
+                                        </TableCell>
+                                        <TableCell>
+                                            {target.lastTestStatus ===
+                                                'error' ||
+                                            target.lastSyncStatus ===
+                                                'error' ? (
+                                                <Badge color='error'>
+                                                    Error
+                                                </Badge>
+                                            ) : target.lastSyncedAt ? (
+                                                <Badge color='success'>
+                                                    Synced
+                                                </Badge>
+                                            ) : (
+                                                <Badge color='neutral'>
+                                                    Not synced
+                                                </Badge>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {excluded.length === 0 ? (
+                                                <Typography
+                                                    variant='body2'
+                                                    color='text.secondary'
+                                                >
+                                                    None
+                                                </Typography>
+                                            ) : (
+                                                <>
+                                                    <Tooltip
+                                                        title={excluded
+                                                            .map(
+                                                                (flag) =>
+                                                                    flag.name,
+                                                            )
+                                                            .join(', ')}
+                                                    >
+                                                        <Button
+                                                            size='small'
+                                                            onClick={() =>
+                                                                setConfigTarget(
+                                                                    target,
+                                                                )
+                                                            }
+                                                        >
+                                                            {excluded.length}{' '}
+                                                            flag
+                                                            {excluded.length ===
+                                                            1
+                                                                ? ''
+                                                                : 's'}
+                                                        </Button>
+                                                    </Tooltip>
+                                                    <Typography
+                                                        variant='caption'
+                                                        color='text.secondary'
+                                                        sx={{
+                                                            display: 'block',
+                                                        }}
+                                                    >
+                                                        {excluded
+                                                            .slice(0, 3)
+                                                            .map(
+                                                                (flag) =>
+                                                                    flag.name,
+                                                            )
+                                                            .join(', ')}
+                                                        {excluded.length > 3
+                                                            ? ` +${excluded.length - 3} more`
+                                                            : ''}
+                                                    </Typography>
+                                                </>
+                                            )}
+                                        </TableCell>
+                                        <TableCell
+                                            align='right'
+                                            sx={{ whiteSpace: 'nowrap' }}
                                         >
-                                            {target.url}
-                                        </Typography>
-                                    </TableCell>
-                                    <TableCell>
-                                        {target.project || 'Same project'}
-                                    </TableCell>
-                                    <TableCell>
-                                        {target.sourceEnvironment} →{' '}
-                                        {target.targetEnvironment}
-                                    </TableCell>
-                                    <TableCell>
-                                        {target.lastSyncedAt
-                                            ? new Date(
-                                                  target.lastSyncedAt,
-                                              ).toLocaleString()
-                                            : 'Never'}
-                                    </TableCell>
-                                    <TableCell>
-                                        {target.lastTestStatus === 'error' ||
-                                        target.lastSyncStatus === 'error' ? (
-                                            <Badge color='error'>Error</Badge>
-                                        ) : target.lastSyncedAt ? (
-                                            <Badge color='success'>
-                                                Synced
-                                            </Badge>
-                                        ) : (
-                                            <Badge color='neutral'>
-                                                Not synced
-                                            </Badge>
-                                        )}
-                                    </TableCell>
-                                    <TableCell align='right'>
-                                        <IconButton
-                                            title='Test connection'
-                                            onClick={() => onTest(target)}
-                                            disabled={testingId === target.id}
-                                        >
-                                            <SyncIcon />
-                                        </IconButton>
-                                        <IconButton
-                                            title='Edit'
-                                            onClick={() => openEdit(target)}
-                                        >
-                                            <EditIcon />
-                                        </IconButton>
-                                        <IconButton
-                                            title='Delete'
-                                            onClick={() => setDeleting(target)}
-                                        >
-                                            <DeleteIcon />
-                                        </IconButton>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
+                                            <Box
+                                                sx={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'flex-end',
+                                                    gap: 0.5,
+                                                }}
+                                            >
+                                                <IconButton
+                                                    title='Test connection'
+                                                    onClick={() =>
+                                                        onTest(target)
+                                                    }
+                                                    disabled={
+                                                        testingId === target.id
+                                                    }
+                                                >
+                                                    <SyncIcon />
+                                                </IconButton>
+                                                <IconButton
+                                                    title='Environment-specific values and exclusions'
+                                                    onClick={() =>
+                                                        setConfigTarget(target)
+                                                    }
+                                                >
+                                                    <RuleIcon />
+                                                </IconButton>
+                                                <IconButton
+                                                    title='Edit'
+                                                    onClick={() =>
+                                                        openEdit(target)
+                                                    }
+                                                >
+                                                    <EditIcon />
+                                                </IconButton>
+                                                <IconButton
+                                                    title='Delete'
+                                                    onClick={() =>
+                                                        setDeleting(target)
+                                                    }
+                                                >
+                                                    <DeleteIcon />
+                                                </IconButton>
+                                            </Box>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
                         </TableBody>
                     </Table>
                 )}
@@ -231,6 +358,19 @@ const EnvironmentSyncPage = () => {
                 onClose={() => setFormOpen(false)}
                 onSaved={refetch}
             />
+
+            {configTarget && (
+                <SidebarModal
+                    open
+                    onClose={() => setConfigTarget(undefined)}
+                    label='Environment configuration'
+                >
+                    <EnvironmentSyncTargetConfigPage
+                        targetId={configTarget.id}
+                        onClose={() => setConfigTarget(undefined)}
+                    />
+                </SidebarModal>
+            )}
 
             <Dialogue
                 open={Boolean(deleting)}

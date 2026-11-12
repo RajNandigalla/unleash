@@ -1,3 +1,5 @@
+import type { EnvironmentSyncIgnoredConfig } from './environment-sync-config.js';
+
 export type EnvironmentSyncTestStatus = 'ok' | 'error';
 export type EnvironmentSyncSyncStatus = 'ok' | 'error';
 
@@ -9,6 +11,7 @@ export interface EnvironmentSyncTarget {
     sourceEnvironment: string;
     targetEnvironment: string;
     enabled: boolean;
+    ignoredConfig: EnvironmentSyncIgnoredConfig;
     createdAt: Date;
     createdBy: string | null;
     lastTestedAt: Date | null;
@@ -30,6 +33,7 @@ export interface EnvironmentSyncTargetInsert {
     project?: string | null;
     sourceEnvironment: string;
     targetEnvironment: string;
+    ignoredConfig?: EnvironmentSyncIgnoredConfig;
     enabled?: boolean;
     createdBy?: string | null;
 }
@@ -41,6 +45,7 @@ export interface EnvironmentSyncTargetUpdate {
     project?: string | null;
     sourceEnvironment?: string;
     targetEnvironment?: string;
+    ignoredConfig?: EnvironmentSyncIgnoredConfig;
     enabled?: boolean;
 }
 
